@@ -11,7 +11,7 @@ services:
       MYSQL_DATABASE: health_iot
       MYSQL_TCP_PORT: 3306
     ports:
-      - "13306:3306"
+      - "127.0.0.1:13306:3306"
     volumes:
       - ./data/mysql:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
@@ -29,7 +29,7 @@ services:
       - 8.8.8.8
     restart: always
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - ./data/redis:/data
     healthcheck:
@@ -46,9 +46,9 @@ services:
       - 8.8.8.8
     restart: always
     ports:
-      - "2181:2181"
+      - "127.0.0.1:2181:2181"
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+      - ALLOW_ANONYMOUS_LOGIN=no
     volumes:
       - ./data/zookeeper:/data
     healthcheck:
@@ -66,7 +66,7 @@ services:
       - 8.8.8.8
     restart: always
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     environment:
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - KAFKA_CFG_LISTENERS=PLAINTEXT://0.0.0.0:9092
@@ -86,16 +86,16 @@ services:
       - 8.8.8.8
     restart: always
     ports:
-      - "1883:1883"
-      - "8083:8083"
-      - "8084:8084"
-      - "8883:8883"
-      - "18083:18083"
+      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:8083:8083"
+      - "127.0.0.1:8084:8084"
+      - "127.0.0.1:8883:8883"
+      - "127.0.0.1:18083:18083"
     environment:
       - EMQX_NODE_NAME=emqx@127.0.0.1
       - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
       - EMQX_DASHBOARD__DEFAULT_PASSWORD=public
-      - EMQX_ALLOW_ANONYMOUS=true
+      - EMQX_ALLOW_ANONYMOUS=false
     volumes:
       - ./data/emqx:/opt/emqx/data
     healthcheck:
@@ -108,12 +108,16 @@ services:
     image: tdengine/tdengine:3.3.0.0
     container_name: demo-tdengine
     mem_limit: 1g
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     hostname: tdengine
     restart: always
     ports:
-      - "6030:6030"
-      - "6041:6041"
-      - "6042:6042"
+      - "127.0.0.1:6030:6030"
+      - "127.0.0.1:6041:6041"
+      - "127.0.0.1:6042:6042"
     environment:
       - TZ=Asia/Shanghai
       - TAOS_FIRST_EP=tdengine:6030
