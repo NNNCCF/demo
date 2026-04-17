@@ -1,8 +1,5 @@
 package com.ncf.demo.config;
 
-import com.ncf.demo.domain.UserRole;
-import com.ncf.demo.domain.UserStatus;
-import com.ncf.demo.entity.UserAccount;
 import com.ncf.demo.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,13 +8,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.util.StreamUtils;
 
 import javax.sql.DataSource;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Configuration
 public class DataInitializer implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
+
     private final UserRepository userRepository;
     private final DataSource dataSource;
     private final AppProperties appProperties;
@@ -31,9 +31,8 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+
         try {
-            // Ensure ID column is auto_increment
-            // Disable FK checks to allow modifying the column
             jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS=0");
             try {
                 jdbcTemplate.execute("ALTER TABLE sys_user MODIFY id BIGINT AUTO_INCREMENT");
@@ -43,41 +42,79 @@ public class DataInitializer implements CommandLineRunner {
                 jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS=1");
             }
         } catch (Exception e) {
-            log.warn("Could not alter table to auto_increment (might already be set or not supported): {}", e.getMessage());
+            log.warn("Could not alter table to auto_increment: {}", e.getMessage());
         }
+
         try {
             jdbcTemplate.execute("ALTER TABLE device DROP COLUMN sn_code");
             log.info("Dropped device.sn_code column");
         } catch (Exception e) {
-            log.warn("Could not drop device.sn_code column (might already be removed): {}", e.getMessage());
+            log.warn("Could not drop device.sn_code column: {}", e.getMessage());
         }
+
         ensureGuardianForeignKey(jdbcTemplate);
         migrateAlarmRuleType(jdbcTemplate);
 
         try {
             if (userRepository.count() == 0) {
-                log.info("Database appears empty. Initializing with mock data...");
-                ResourceDatabasePopulator populator = new ResourceDatabasePopulator(new ClassPathResource("mock_data.sql"));
-                populator.execute(dataSource);
-                log.info("Mock data initialization completed.");
-            } else {
-                // Ensure admin user exists even if DB is not empty
-                if (!userRepository.existsById(1000L) && !userRepository.existsByUsername("admin")) {
-                    log.info("Admin user not found. Creating default admin user...");
-                    String passwordHash = appProperties.getAdminPasswordHash();
-                    if (passwordHash == null || passwordHash.isBlank()) {
-                        log.error("app.admin-password-hash 未配置，跳过创建管理员账号");
-                    } else {
-                        // Use SQL to insert with fixed ID to avoid conflicts with auto_increment
-                        jdbcTemplate.update("INSERT INTO sys_user (id, username, password_hash, role, region, phone, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
-                                1000L, "admin", passwordHash, "ADMIN", "总部", "13800138000", "ENABLED");
-                        log.info("Default admin user created.");
-                    }
-                }
+                maybeImportMockData();
+            }
+            ensureDefaultAdminUser(jdbcTemplate);
+        } catch (Exception e) {
+            log.error("Failed during data initialization: {}", e.getMessage(), e);
+        }
+    }
+
+    private void maybeImportMockData() {
+        if (!appProperties.isMockDataEnabled()) {
+            log.info("Mock data import is disabled (app.mock-data-enabled=false).");
+            return;
+        }
+
+        ClassPathResource script = new ClassPathResource("mock_data.sql");
+        if (!hasUsableScript(script)) {
+            log.warn("mock_data.sql is missing or empty, skipping mock data import.");
+            return;
+        }
+
+        log.info("Database appears empty. Initializing with mock data...");
+        ResourceDatabasePopulator populator = new ResourceDatabasePopulator(script);
+        populator.execute(dataSource);
+        log.info("Mock data initialization completed.");
+    }
+
+    private boolean hasUsableScript(ClassPathResource script) {
+        try {
+            if (!script.exists() || script.contentLength() <= 0) {
+                return false;
+            }
+            try (var in = script.getInputStream()) {
+                String content = StreamUtils.copyToString(in, StandardCharsets.UTF_8);
+                return content != null && !content.trim().isEmpty();
             }
         } catch (Exception e) {
-            log.error("Failed to initialize mock data: {}", e.getMessage(), e);
+            log.warn("Unable to read mock_data.sql: {}", e.getMessage());
+            return false;
         }
+    }
+
+    private void ensureDefaultAdminUser(JdbcTemplate jdbcTemplate) {
+        if (userRepository.existsById(1000L) || userRepository.existsByUsername("admin")) {
+            return;
+        }
+
+        log.info("Admin user not found. Creating default admin user...");
+        String passwordHash = appProperties.getAdminPasswordHash();
+        if (passwordHash == null || passwordHash.isBlank()) {
+            log.error("app.admin-password-hash is not configured, skip creating admin user.");
+            return;
+        }
+
+        jdbcTemplate.update(
+                "INSERT INTO sys_user (id, username, password_hash, role, region, phone, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                1000L, "admin", passwordHash, "ADMIN", "HQ", "13800138000", "ENABLED"
+        );
+        log.info("Default admin user created.");
     }
 
     private void migrateAlarmRuleType(JdbcTemplate jdbcTemplate) {
@@ -102,6 +139,7 @@ public class DataInitializer implements CommandLineRunner {
                     rs.getString("CONSTRAINT_NAME"),
                     rs.getString("REFERENCED_TABLE_NAME")
             ));
+
             boolean hasClientUserFk = false;
             for (GuardianFkInfo fk : foreignKeys) {
                 if ("client_user".equalsIgnoreCase(fk.referencedTable())) {
@@ -112,12 +150,14 @@ public class DataInitializer implements CommandLineRunner {
                     jdbcTemplate.execute("ALTER TABLE device DROP FOREIGN KEY `" + fk.constraintName() + "`");
                 }
             }
+
             jdbcTemplate.execute("""
                     UPDATE device d
                     LEFT JOIN client_user c ON d.guardian_id = c.id
                     SET d.guardian_id = NULL
                     WHERE d.guardian_id IS NOT NULL AND c.id IS NULL
                     """);
+
             if (!hasClientUserFk) {
                 jdbcTemplate.execute("""
                         ALTER TABLE device

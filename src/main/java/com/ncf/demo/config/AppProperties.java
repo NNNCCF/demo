@@ -7,7 +7,8 @@ public class AppProperties {
     private final Jwt jwt = new Jwt();
     private final Emqx emqx = new Emqx();
     private final Tdengine tdengine = new Tdengine();
-    /** 初始管理员账号的 BCrypt 密码哈希，通过环境变量 ADMIN_PASSWORD_HASH 注入 */
+
+    private boolean mockDataEnabled = false;
     private String adminPasswordHash;
 
     public Jwt getJwt() {
@@ -20,6 +21,14 @@ public class AppProperties {
 
     public Tdengine getTdengine() {
         return tdengine;
+    }
+
+    public boolean isMockDataEnabled() {
+        return mockDataEnabled;
+    }
+
+    public void setMockDataEnabled(boolean mockDataEnabled) {
+        this.mockDataEnabled = mockDataEnabled;
     }
 
     public String getAdminPasswordHash() {
