@@ -1,7 +1,29 @@
 pluginManagement {
 	repositories {
-		maven { url = 'https://repo.spring.io/snapshot' }
+		// CN mirrors first
+		maven { url = 'https://maven.aliyun.com/repository/gradle-plugin' }
+		maven { url = 'https://maven.aliyun.com/repository/public' }
+		maven { url = 'https://maven.aliyun.com/repository/spring' }
+		// Global fallback
 		gradlePluginPortal()
+		mavenCentral()
+		maven { url = 'https://repo.spring.io/release' }
+		maven { url = 'https://repo.spring.io/snapshot' }
 	}
 }
+
+dependencyResolutionManagement {
+	repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+	repositories {
+		// CN mirrors first
+		maven { url = 'https://maven.aliyun.com/repository/public' }
+		maven { url = 'https://maven.aliyun.com/repository/spring' }
+		maven { url = 'https://maven.aliyun.com/repository/gradle-plugin' }
+		// Global fallback
+		mavenCentral()
+		maven { url = 'https://repo.spring.io/release' }
+		maven { url = 'https://repo.spring.io/snapshot' }
+	}
+}
+
 rootProject.name = 'demo'
