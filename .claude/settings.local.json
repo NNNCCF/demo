@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l src/main/java/com/ncf/demo/web/*.java)",
+      "Bash(wc -l src/main/java/com/ncf/demo/service/*.java)",
+      "Bash(xargs grep:*)",
+      "Bash(/tmp/frontend_structure.txt:*)",
+      "Read(//tmp/**)",
+      "Bash(\"d:\\\\2313041935Program\\\\demo\\\\src\\\\main\\\\resources\\\\application.properties\")",
+      "Bash(find /d/2313041935Program/demo -type f -name *router* -o -name *route*)",
+      "Bash(grep -r \"RestController\\\\|RequestMapping\\\\|GetMapping\\\\|PostMapping\" /d/2313041935Program/demo/src/main/java/com/ncf/demo/web/*.java)",
+      "Bash(grep -r \"ActuatorEndpoint\\\\|management\\\\|endpoint\" /d/2313041935Program/demo/src/main/java/com/ncf/demo --include=*.java)",
+      "Bash(./gradlew compileJava -x test)"
+    ]
+  }
+}
