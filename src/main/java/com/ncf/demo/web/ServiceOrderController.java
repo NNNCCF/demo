@@ -80,7 +80,7 @@ public class ServiceOrderController {
                 .filter(u -> u.getRole() == ClientUserRole.CAREGIVER)
                 .map(u -> Map.<String, Object>of(
                         "id", u.getId(),
-                        "name", u.getName() != null ? u.getName() : u.getUsername(),
+                        "name", u.getName() != null ? u.getName() : "",
                         "phone", u.getMobile() != null ? u.getMobile() : ""))
                 .toList();
         return ApiResponse.ok(result);
