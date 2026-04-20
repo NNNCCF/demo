@@ -509,16 +509,20 @@ public class MiniAppController {
             orders = orders.stream().filter(o -> o.getStatus() == sos).collect(Collectors.toList());
         }
         if (startDate != null && !startDate.isBlank()) {
-            Instant start = LocalDate.parse(startDate).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
-            orders = orders.stream()
-                    .filter(o -> o.getAppointmentTime() == null || !o.getAppointmentTime().isBefore(start))
-                    .collect(Collectors.toList());
+            try {
+                Instant start = LocalDate.parse(startDate).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
+                orders = orders.stream()
+                        .filter(o -> o.getAppointmentTime() == null || !o.getAppointmentTime().isBefore(start))
+                        .collect(Collectors.toList());
+            } catch (Exception ignored) {}
         }
         if (endDate != null && !endDate.isBlank()) {
+            try {
             Instant end = LocalDate.parse(endDate).plusDays(1).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
             orders = orders.stream()
                     .filter(o -> o.getAppointmentTime() == null || o.getAppointmentTime().isBefore(end))
                     .collect(Collectors.toList());
+            } catch (Exception ignored) {}
         }
 
         List<ApptVo> vos = orders.stream().map(this::toApptVo).collect(Collectors.toList());

@@ -72,10 +72,12 @@ public class ServiceOrderController {
         return ApiResponse.ok(null);
     }
 
-    /** 返回指定机构下的医护人员列表（供派单用） */
+    /** 返回医护人员列表（供派单用），有 orgId 则按机构过滤，否则返回全部护工 */
     @GetMapping("/nurses")
-    public ApiResponse<List<Map<String, Object>>> listNurses(@RequestParam Long orgId) {
-        List<ClientUser> users = clientUserRepository.findByOrgId(orgId);
+    public ApiResponse<List<Map<String, Object>>> listNurses(@RequestParam(required = false) Long orgId) {
+        List<ClientUser> users = orgId != null
+                ? clientUserRepository.findByOrgId(orgId)
+                : clientUserRepository.findAll();
         List<Map<String, Object>> result = users.stream()
                 .filter(u -> u.getRole() == ClientUserRole.CAREGIVER)
                 .map(u -> Map.<String, Object>of(
