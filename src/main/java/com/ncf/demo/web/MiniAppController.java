@@ -556,26 +556,26 @@ public class MiniAppController {
         device.setBindStatus(true);
         device.setBindTime(Instant.now());
 
+        // 先保存设备，确保 device 记录已存在，再写 client_user_device 中间表
+        deviceRepo.save(device);
+
         Optional<ClientUser> cuOpt = currentClientUser();
         cuOpt.ifPresent(cu -> {
             device.setGuardian(cu);
             cu.getDevices().add(device);
 
-            // ── 关键修复：将设备关联到该家属的家庭 ──
-            // 家属注册时自动创建了 Family，查出来写入 device.familyId
             List<Family> families = familyRepo.findByGuardiansId(cu.getId());
             if (!families.isEmpty()) {
                 Family family = families.get(0);
                 device.setFamilyId(family.getId());
-                // 同步把设备的地址/坐标写到家庭（方便后续地图显示）
                 if (body.address() != null && family.getAddress() == null) {
                     family.setAddress(body.address());
                     familyRepo.save(family);
                 }
             }
             clientUserRepo.save(cu);
+            deviceRepo.save(device);
         });
-        deviceRepo.save(device);
         return ApiResponse.ok(toDeviceVo(device));
     }
 
@@ -738,10 +738,7 @@ public class MiniAppController {
 
     @PostMapping("/member/create")
     public ApiResponse<Map<String, Object>> createMember(@RequestBody CreateMemberRequest body) {
-        long nextId = wardRepo.findTopByOrderByMemberIdDesc()
-                .map(w -> w.getMemberId() + 1).orElse(1L);
         Ward w = new Ward();
-        w.setMemberId(nextId);
         if (body.name() != null) w.setName(body.name());
         if (body.mobile() != null) w.setMobile(body.mobile());
         if (body.gender() != null) {
@@ -767,7 +764,7 @@ public class MiniAppController {
             });
         }
         wardRepo.save(w);
-        return ApiResponse.ok(Map.of("success", true, "id", nextId));
+        return ApiResponse.ok(Map.of("success", true, "id", w.getMemberId()));
     }
 
     @PostMapping("/member/{id}/update")
