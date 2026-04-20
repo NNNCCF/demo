@@ -28,7 +28,6 @@ public class Device {
     private String homeLocation;
     private String medicalInstitution;
     private String propertyManagement;
-    private Boolean bindStatus;
     private Instant bindTime;
     
     @Column(name = "target_id")
@@ -127,14 +126,6 @@ public class Device {
 
     public void setPropertyManagement(String propertyManagement) {
         this.propertyManagement = propertyManagement;
-    }
-
-    public Boolean getBindStatus() {
-        return bindStatus;
-    }
-
-    public void setBindStatus(Boolean bindStatus) {
-        this.bindStatus = bindStatus;
     }
 
     public Instant getBindTime() {

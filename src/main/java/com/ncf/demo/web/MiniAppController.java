@@ -546,23 +546,18 @@ public class MiniAppController {
             d.setCreatedAt(Instant.now());
             return d;
         });
-        if (Boolean.TRUE.equals(device.getBindStatus())) {
+        if (device.getGuardian() != null) {
             throw new BizException(4001, "设备已被绑定");
         }
         if (body.address() != null) device.setAddress(body.address());
         if (body.location() != null) device.setHomeLocation(body.location());
         if (body.latitude() != null) device.setLatitude(body.latitude());
         if (body.longitude() != null) device.setLongitude(body.longitude());
-        device.setBindStatus(true);
         device.setBindTime(Instant.now());
-
-        // 先保存设备，确保 device 记录已存在，再写 client_user_device 中间表
-        deviceRepo.save(device);
 
         Optional<ClientUser> cuOpt = currentClientUser();
         cuOpt.ifPresent(cu -> {
             device.setGuardian(cu);
-            cu.getDevices().add(device);
 
             List<Family> families = familyRepo.findByGuardiansId(cu.getId());
             if (!families.isEmpty()) {
@@ -573,9 +568,8 @@ public class MiniAppController {
                     familyRepo.save(family);
                 }
             }
-            clientUserRepo.save(cu);
-            deviceRepo.save(device);
         });
+        deviceRepo.save(device);
         return ApiResponse.ok(toDeviceVo(device));
     }
 
@@ -584,8 +578,8 @@ public class MiniAppController {
         if (body.deviceId() == null) throw new BizException(4000, "deviceId不能为空");
         Device device = deviceRepo.findById(body.deviceId())
                 .orElseThrow(() -> new BizException(4004, "设备不存在"));
-        device.setBindStatus(false);
         device.setGuardian(null);
+        device.setBindTime(null);
         deviceRepo.save(device);
         return ApiResponse.ok(null);
     }
@@ -596,14 +590,7 @@ public class MiniAppController {
         List<Device> devices;
         if ("GUARDIAN".equals(role)) {
             Optional<ClientUser> cu = currentClientUser();
-            if (cu.isEmpty()) {
-                devices = List.of();
-            } else {
-                Map<String, Device> deviceMap = new java.util.LinkedHashMap<>();
-                cu.get().getDevices().forEach(d -> deviceMap.put(d.getDeviceId(), d));
-                deviceRepo.findByGuardianId(cu.get().getId()).forEach(d -> deviceMap.put(d.getDeviceId(), d));
-                devices = new ArrayList<>(deviceMap.values());
-            }
+            devices = cu.isEmpty() ? List.of() : deviceRepo.findByGuardianId(cu.get().getId());
         } else {
             Long orgId = SecurityUtil.currentOrgId();
             String orgName = orgId != null

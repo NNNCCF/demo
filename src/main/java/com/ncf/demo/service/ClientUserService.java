@@ -22,10 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 public class ClientUserService {
@@ -61,12 +60,9 @@ public class ClientUserService {
                 ? clientUserRepository.findByOrgId(orgId)
                 : clientUserRepository.findAll();
         for (ClientUser user : users) {
-            // 合并两个来源：client_user_device 中间表 + device.guardian_id 直接外键
-            Map<String, ClientUserDeviceResponse> deviceMap = new LinkedHashMap<>();
-            user.getDevices().forEach(d -> deviceMap.put(d.getDeviceId(), new ClientUserDeviceResponse(d.getDeviceId())));
-            deviceRepository.findByGuardianId(user.getId())
-                    .forEach(d -> deviceMap.put(d.getDeviceId(), new ClientUserDeviceResponse(d.getDeviceId())));
-            List<ClientUserDeviceResponse> devices = new ArrayList<>(deviceMap.values());
+            List<ClientUserDeviceResponse> devices = deviceRepository.findByGuardianId(user.getId()).stream()
+                    .map(d -> new ClientUserDeviceResponse(d.getDeviceId()))
+                    .collect(Collectors.toList());
             items.add(new ClientUserListItemResponse(
                 user.getId(),
                 user.getMobile(),
@@ -130,11 +126,9 @@ public class ClientUserService {
     public ClientUserListItemResponse findByIdAsResponse(Long id) {
         if (clientUserRepository.existsById(id)) {
             ClientUser u = clientUserRepository.findById(id).get();
-            Map<String, ClientUserDeviceResponse> deviceMap = new LinkedHashMap<>();
-            u.getDevices().forEach(d -> deviceMap.put(d.getDeviceId(), new ClientUserDeviceResponse(d.getDeviceId())));
-            deviceRepository.findByGuardianId(u.getId())
-                    .forEach(d -> deviceMap.put(d.getDeviceId(), new ClientUserDeviceResponse(d.getDeviceId())));
-            List<ClientUserDeviceResponse> devices = new ArrayList<>(deviceMap.values());
+            List<ClientUserDeviceResponse> devices = deviceRepository.findByGuardianId(u.getId()).stream()
+                    .map(d -> new ClientUserDeviceResponse(d.getDeviceId()))
+                    .collect(Collectors.toList());
             return new ClientUserListItemResponse(
                 u.getId(), u.getMobile(), u.getName(), u.getRole(),
                 u.getCreatedAt(), u.getUpdatedAt(), devices,
@@ -252,11 +246,9 @@ public class ClientUserService {
     @Transactional
     public void delete(Long id) {
         if (clientUserRepository.existsById(id)) {
-            // 1. 清除 client_user_device 关联表
-            clientUserRepository.deleteDeviceLinks(id);
-            // 2. 清除 device.guardian_id 引用
+            // 1. 清除 device.guardian_id 引用
             deviceRepository.clearGuardianByGuardianId(id);
-            // 3. 清除 family_guardian 关联表
+            // 2. 清除 family_guardian 关联表
             List<Family> families = familyRepository.findByGuardiansId(id);
             for (Family family : families) {
                 family.getGuardians().removeIf(g -> g.getId().equals(id));
@@ -285,8 +277,8 @@ public class ClientUserService {
 
         ClientUser user = clientUserRepository.findById(userId)
                 .orElseThrow(() -> new BizException(404, "用户不存在"));
-        user.getDevices().add(device);
-        clientUserRepository.save(user);
+        device.setGuardian(user);
+        deviceRepository.save(device);
     }
 
     @Transactional
@@ -304,9 +296,9 @@ public class ClientUserService {
             return;
         }
 
-        ClientUser user = clientUserRepository.findById(userId)
-                .orElseThrow(() -> new BizException(404, "用户不存在"));
-        user.getDevices().remove(device);
-        clientUserRepository.save(user);
+        if (device.getGuardian() != null && device.getGuardian().getId().equals(userId)) {
+            device.setGuardian(null);
+            deviceRepository.save(device);
+        }
     }
 }

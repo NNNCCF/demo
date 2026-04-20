@@ -4,8 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ncf.demo.domain.ClientUserRole;
 import jakarta.persistence.*;
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Table(name = "client_user")
@@ -30,14 +28,6 @@ public class ClientUser {
 
     private Instant createdAt;
     private Instant updatedAt;
-
-    @ManyToMany
-    @JoinTable(
-        name = "client_user_device",
-        joinColumns = @JoinColumn(name = "client_user_id"),
-        inverseJoinColumns = @JoinColumn(name = "device_id")
-    )
-    private Set<Device> devices = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {
@@ -114,11 +104,4 @@ public class ClientUser {
         this.updatedAt = updatedAt;
     }
 
-    public Set<Device> getDevices() {
-        return devices;
-    }
-
-    public void setDevices(Set<Device> devices) {
-        this.devices = devices;
-    }
 }

@@ -9,6 +9,7 @@ import com.ncf.demo.entity.Family;
 import com.ncf.demo.entity.Organization;
 import com.ncf.demo.entity.UserAccount;
 import com.ncf.demo.repository.ClientUserRepository;
+import com.ncf.demo.repository.DeviceRepository;
 import com.ncf.demo.repository.FamilyRepository;
 import com.ncf.demo.repository.OrganizationRepository;
 import com.ncf.demo.repository.UserRepository;
@@ -39,6 +40,7 @@ public class MiniAppAuthService {
     private final UserRepository userRepository;
     private final OrganizationRepository orgRepository;
     private final FamilyRepository familyRepository;
+    private final DeviceRepository deviceRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
@@ -46,12 +48,14 @@ public class MiniAppAuthService {
                                UserRepository userRepository,
                                OrganizationRepository orgRepository,
                                FamilyRepository familyRepository,
+                               DeviceRepository deviceRepository,
                                PasswordEncoder passwordEncoder,
                                JwtService jwtService) {
         this.clientUserRepository = clientUserRepository;
         this.userRepository = userRepository;
         this.orgRepository = orgRepository;
         this.familyRepository = familyRepository;
+        this.deviceRepository = deviceRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
@@ -145,7 +149,7 @@ public class MiniAppAuthService {
                 null
         );
 
-        List<Object> devices = user.getDevices().stream()
+        List<Object> devices = deviceRepository.findByGuardianId(user.getId()).stream()
                 .map(d -> (Object) d.getDeviceId())
                 .collect(Collectors.toList());
 
