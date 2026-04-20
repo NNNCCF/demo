@@ -89,7 +89,9 @@ public class MiniAppController {
                   String appointTime, String requirement,
                   String payAmount, String payStatus,
                   String visitTime, String visitRemark,
-                  String completeTime, String dispatchedBy) {}
+                  String completeTime, String dispatchedBy,
+                  String contactName, String contactPhone,
+                  String serviceAddress, String medicineList) {}
 
     record FamilyVo(Long id, String shortName, String address, String community,
                     Double latitude, Double longitude,
@@ -121,7 +123,8 @@ public class MiniAppController {
                                Boolean handled, String remark) {}
 
     record CreateApptRequest(@NotBlank String type, Long memberId, Long familyId,
-                              Long guardianId, String appointTime, String requirement) {}
+                              Long guardianId, String appointTime, String requirement,
+                              String contactName, String contactPhone) {}
 
     record DispatchRequest(Long nurseId, String nurseName) {}
 
@@ -343,7 +346,9 @@ public class MiniAppController {
                 o.getPayAmount(), o.getPayStatus(),
                 fmt(o.getVisitTime()), o.getVisitRemark(),
                 o.getStatus() == ServiceOrderStatus.COMPLETED ? fmt(o.getVisitTime()) : null,
-                o.getDispatchedBy());
+                o.getDispatchedBy(),
+                o.getContactName(), o.getContactPhone(),
+                o.getServiceAddress(), o.getMedicineList());
     }
 
     private MemberVo toMemberVo(Ward w) {
@@ -506,13 +511,13 @@ public class MiniAppController {
         if (startDate != null && !startDate.isBlank()) {
             Instant start = LocalDate.parse(startDate).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
             orders = orders.stream()
-                    .filter(o -> o.getAppointmentTime() != null && !o.getAppointmentTime().isBefore(start))
+                    .filter(o -> o.getAppointmentTime() == null || !o.getAppointmentTime().isBefore(start))
                     .collect(Collectors.toList());
         }
         if (endDate != null && !endDate.isBlank()) {
             Instant end = LocalDate.parse(endDate).plusDays(1).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
             orders = orders.stream()
-                    .filter(o -> o.getAppointmentTime() != null && o.getAppointmentTime().isBefore(end))
+                    .filter(o -> o.getAppointmentTime() == null || o.getAppointmentTime().isBefore(end))
                     .collect(Collectors.toList());
         }
 
@@ -578,6 +583,10 @@ public class MiniAppController {
             } catch (Exception ignored) {}
         }
         o.setRequirement(body.requirement());
+        if (body.contactName() != null && !body.contactName().isBlank())
+            o.setContactName(body.contactName().trim());
+        if (body.contactPhone() != null && !body.contactPhone().isBlank())
+            o.setContactPhone(body.contactPhone().trim());
         orderRepo.save(o);
         return ApiResponse.ok(toApptVo(o));
     }
@@ -1343,24 +1352,21 @@ public class MiniAppController {
         o.setOrderType(ServiceOrderType.MEDICINE_DELIVERY);
         o.setDisplayType("送药服务");
 
-        // Build requirement: medicines → address → contact → notes
-        List<String> parts = new ArrayList<>();
+        // Store structured fields
         if (body.medicines() != null && !body.medicines().isEmpty()) {
             String names = body.medicines().stream()
                     .map(m -> (String) m.get("name"))
                     .filter(n -> n != null && !n.isBlank())
                     .collect(Collectors.joining("、"));
-            if (!names.isBlank()) parts.add("药品：" + names);
+            o.setMedicineList(names);
         }
         if (body.address() != null && !body.address().isBlank())
-            parts.add("送药地址：" + body.address().trim());
+            o.setServiceAddress(body.address().trim());
         if (body.contactName() != null && !body.contactName().isBlank())
-            parts.add("联系人：" + body.contactName().trim());
+            o.setContactName(body.contactName().trim());
         if (body.contactPhone() != null && !body.contactPhone().isBlank())
-            parts.add("联系电话：" + body.contactPhone().trim());
-        if (body.notes() != null && !body.notes().isBlank())
-            parts.add("备注：" + body.notes().trim());
-        o.setRequirement(String.join("；", parts));
+            o.setContactPhone(body.contactPhone().trim());
+        o.setRequirement(body.notes() != null ? body.notes().trim() : null);
 
         // Set delivery time as appointmentTime
         if (body.deliverAt() != null && !body.deliverAt().isBlank()) {

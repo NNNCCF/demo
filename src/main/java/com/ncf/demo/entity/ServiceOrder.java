@@ -64,6 +64,18 @@ public class ServiceOrder {
     @Column(name = "display_type", length = 60)
     private String displayType;
 
+    @Column(name = "contact_name", length = 100)
+    private String contactName;
+
+    @Column(name = "contact_phone", length = 20)
+    private String contactPhone;
+
+    @Column(name = "service_address", columnDefinition = "TEXT")
+    private String serviceAddress;
+
+    @Column(name = "medicine_list", columnDefinition = "TEXT")
+    private String medicineList;
+
     @Column(columnDefinition = "TEXT")
     private String requirement;
 
@@ -137,6 +149,18 @@ public class ServiceOrder {
 
     public String getDisplayType() { return displayType; }
     public void setDisplayType(String displayType) { this.displayType = displayType; }
+
+    public String getContactName() { return contactName; }
+    public void setContactName(String contactName) { this.contactName = contactName; }
+
+    public String getContactPhone() { return contactPhone; }
+    public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
+
+    public String getServiceAddress() { return serviceAddress; }
+    public void setServiceAddress(String serviceAddress) { this.serviceAddress = serviceAddress; }
+
+    public String getMedicineList() { return medicineList; }
+    public void setMedicineList(String medicineList) { this.medicineList = medicineList; }
 
     public String getRequirement() { return requirement; }
     public void setRequirement(String requirement) { this.requirement = requirement; }
