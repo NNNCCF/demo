@@ -1324,30 +1324,57 @@ public class MiniAppController {
 
     // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // MEDICINE ORDER (mini-app facing)
     // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
-    record MedicineOrderRequest(List<Map<String, Object>> medicines, String address, String notes) {}
+    record MedicineOrderRequest(List<Map<String, Object>> medicines, String address,
+                                String contactName, String contactPhone, String deliverAt, String notes) {}
 
     @PostMapping("/medicine/order")
     public ApiResponse<Map<String, Object>> createMedicineOrder(@RequestBody MedicineOrderRequest body) {
         ServiceOrder o = new ServiceOrder();
         o.setOrderType(ServiceOrderType.MEDICINE_DELIVERY);
         o.setDisplayType("送药服务");
-        StringBuilder req = new StringBuilder();
-        if (body.address() != null && !body.address().isBlank()) {
-            req.append("送药地址：").append(body.address().trim());
+
+        // Build requirement: medicines → address → contact → notes
+        List<String> parts = new ArrayList<>();
+        if (body.medicines() != null && !body.medicines().isEmpty()) {
+            String names = body.medicines().stream()
+                    .map(m -> (String) m.get("name"))
+                    .filter(n -> n != null && !n.isBlank())
+                    .collect(Collectors.joining("、"));
+            if (!names.isBlank()) parts.add("药品：" + names);
         }
-        if (body.notes() != null && !body.notes().isBlank()) {
-            if (req.length() > 0) {
-                req.append(" ");
-            }
-            req.append("备注：").append(body.notes().trim());
+        if (body.address() != null && !body.address().isBlank())
+            parts.add("送药地址：" + body.address().trim());
+        if (body.contactName() != null && !body.contactName().isBlank())
+            parts.add("联系人：" + body.contactName().trim());
+        if (body.contactPhone() != null && !body.contactPhone().isBlank())
+            parts.add("联系电话：" + body.contactPhone().trim());
+        if (body.notes() != null && !body.notes().isBlank())
+            parts.add("备注：" + body.notes().trim());
+        o.setRequirement(String.join("；", parts));
+
+        // Set delivery time as appointmentTime
+        if (body.deliverAt() != null && !body.deliverAt().isBlank()) {
+            try {
+                o.setAppointmentTime(LocalDateTime.parse(body.deliverAt(),
+                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                        .atZone(ZoneId.of("Asia/Shanghai")).toInstant());
+            } catch (Exception ignored) {}
         }
-        o.setRequirement(req.toString());
+
         currentClientUser().ifPresent(cu -> {
             o.setGuardianId(cu.getId());
             Family family = primaryFamilyOfGuardian(cu.getId());
             if (family != null) {
                 o.setFamilyId(family.getId());
                 o.setOrgId(family.getOrgId());
+            }
+            // Auto-assign bound doctor as nurse
+            Device device = deviceRepo.findByGuardianId(cu.getId()).stream().findFirst().orElse(null);
+            if (device != null && device.getDoctorId() != null) {
+                doctorRepo.findById(device.getDoctorId()).ifPresent(doc -> {
+                    o.setNurseName(doc.getName());
+                    o.setNursePhone(doc.getMobile());
+                });
             }
         });
         o.setCreatedById(SecurityUtil.currentUserId());
