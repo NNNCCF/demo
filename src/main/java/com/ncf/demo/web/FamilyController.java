@@ -126,10 +126,19 @@ public class FamilyController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @org.springframework.transaction.annotation.Transactional
     public void delete(@PathVariable Long id) {
         Family family = familyRepository.findById(id)
                 .orElseThrow(() -> new BizException(404, "家庭不存在"));
         checkOrgAccess(family);
+        // 清除 family_guardian 关联（避免 FK 约束失败）
+        family.getGuardians().clear();
+        familyRepository.save(family);
+        // 清除 device.family_id 引用
+        deviceRepository.findByFamilyId(id).forEach(d -> {
+            d.setFamilyId(null);
+            deviceRepository.save(d);
+        });
         familyRepository.delete(family);
     }
 
