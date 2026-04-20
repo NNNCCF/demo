@@ -760,6 +760,11 @@ public class MiniAppController {
         if (body.emergencyPhone() != null) w.setEmergencyPhone(body.emergencyPhone());
         if (body.deviceId() != null) {
             deviceRepo.findById(body.deviceId()).ifPresent(w::setDevice);
+        } else if ("GUARDIAN".equals(SecurityUtil.currentRole())) {
+            currentClientUser().ifPresent(cu -> {
+                List<Device> bound = deviceRepo.findByGuardianId(cu.getId());
+                if (!bound.isEmpty()) w.setDevice(bound.get(0));
+            });
         }
         wardRepo.save(w);
         return ApiResponse.ok(Map.of("success", true, "id", nextId));
