@@ -724,8 +724,11 @@ public class MiniAppController {
     }
 
     @PostMapping("/member/create")
-    public ApiResponse<Map<String, Object>> createMember(@RequestBody CreateMemberRequest body) {
+    public synchronized ApiResponse<Map<String, Object>> createMember(@RequestBody CreateMemberRequest body) {
+        long nextId = wardRepo.findTopByOrderByMemberIdDesc()
+                .map(ward -> ward.getMemberId() + 1).orElse(1L);
         Ward w = new Ward();
+        w.setMemberId(nextId);
         if (body.name() != null) w.setName(body.name());
         if (body.mobile() != null) w.setMobile(body.mobile());
         if (body.gender() != null) {
@@ -751,7 +754,7 @@ public class MiniAppController {
             });
         }
         wardRepo.save(w);
-        return ApiResponse.ok(Map.of("success", true, "id", w.getMemberId()));
+        return ApiResponse.ok(Map.of("success", true, "id", nextId));
     }
 
     @PostMapping("/member/{id}/update")
