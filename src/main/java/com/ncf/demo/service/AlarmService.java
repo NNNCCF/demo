@@ -96,6 +96,32 @@ public class AlarmService {
         }
     }
 
+    @Transactional
+    public Alarm createManualAlarm(Long targetId, String deviceId, AlarmType alarmType, AlarmLevel alarmLevel, String currentValue) {
+        Alarm alarm = new Alarm();
+        alarm.setTargetId(targetId);
+        alarm.setDeviceId(deviceId);
+        alarm.setAlarmType(alarmType);
+        alarm.setAlarmLevel(alarmLevel);
+        alarm.setOccurredAt(Instant.now());
+        alarm.setCurrentValue(currentValue);
+        alarm.setHandleStatus(AlarmHandleStatus.UNHANDLED);
+        Alarm saved = alarmRepository.save(alarm);
+        AlarmEvent event = new AlarmEvent(
+                saved.getId(),
+                saved.getTargetId(),
+                saved.getDeviceId(),
+                saved.getAlarmType(),
+                saved.getAlarmLevel(),
+                saved.getOccurredAt(),
+                saved.getCurrentValue()
+        );
+        if (kafkaTemplate != null) {
+            kafkaTemplate.send("health_alarm", saved.getDeviceId(), event);
+        }
+        return saved;
+    }
+
     private void safeEvaluate(String name, Runnable task) {
         try {
             task.run();
@@ -201,26 +227,6 @@ public class AlarmService {
         if (device == null) {
             return;
         }
-        Alarm alarm = new Alarm();
-        alarm.setTargetId(device.getTargetId()); // may be null for unbound devices
-        alarm.setDeviceId(data.deviceId());
-        alarm.setAlarmType(alarmType);
-        alarm.setAlarmLevel(alarmLevel);
-        alarm.setOccurredAt(Instant.now());
-        alarm.setCurrentValue(currentValue);
-        alarm.setHandleStatus(AlarmHandleStatus.UNHANDLED);
-        Alarm saved = alarmRepository.save(alarm);
-        AlarmEvent event = new AlarmEvent(
-                saved.getId(),
-                saved.getTargetId(),
-                saved.getDeviceId(),
-                saved.getAlarmType(),
-                saved.getAlarmLevel(),
-                saved.getOccurredAt(),
-                saved.getCurrentValue()
-        );
-        if (kafkaTemplate != null) {
-            kafkaTemplate.send("health_alarm", saved.getDeviceId(), event);
-        }
+        createManualAlarm(device.getTargetId(), data.deviceId(), alarmType, alarmLevel, currentValue);
     }
 }

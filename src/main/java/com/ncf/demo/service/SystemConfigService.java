@@ -2,7 +2,10 @@ package com.ncf.demo.service;
 
 import com.ncf.demo.entity.SystemConfig;
 import com.ncf.demo.repository.SystemConfigRepository;
-import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -11,6 +14,7 @@ import java.util.Map;
 
 @Service
 public class SystemConfigService {
+    private static final Logger log = LoggerFactory.getLogger(SystemConfigService.class);
 
     private static final Map<String, String> DEFAULTS = Map.of(
             "dataRetentionDays", "30",
@@ -25,13 +29,17 @@ public class SystemConfigService {
         this.repository = repository;
     }
 
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
     public void initDefaults() {
-        DEFAULTS.forEach((key, value) -> {
-            if (!repository.existsById(key)) {
-                repository.save(new SystemConfig(key, value));
-            }
-        });
+        try {
+            DEFAULTS.forEach((key, value) -> {
+                if (!repository.existsById(key)) {
+                    repository.save(new SystemConfig(key, value));
+                }
+            });
+        } catch (Exception e) {
+            log.warn("Skip system config default init for now: {}", e.getMessage());
+        }
     }
 
     public String get(String key, String defaultValue) {

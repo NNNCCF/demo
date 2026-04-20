@@ -5,6 +5,7 @@ import com.ncf.demo.domain.*;
 import com.ncf.demo.entity.*;
 import com.ncf.demo.repository.*;
 import com.ncf.demo.security.SecurityUtil;
+import com.ncf.demo.service.AlarmService;
 import com.ncf.demo.service.TdengineService;
 import com.ncf.demo.web.dto.mini.NurseListItem;
 import jakarta.validation.Valid;
@@ -17,7 +18,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Mini-app business endpoints — all routes require authentication.
+ * Mini-app business endpoints 閳?all routes require authentication.
  * All endpoints live under /api/mini/ to avoid collisions with existing admin routes.
  */
 @RestController
@@ -40,6 +41,9 @@ public class MiniAppController {
     private final HealthDataRepository healthDataRepo;
     private final OrganizationRepository orgRepo;
     private final NewsPostRepository newsRepo;
+    private final GuardianAlarmSettingRepository guardianAlarmSettingRepo;
+    private final FeedbackSubmissionRepository feedbackRepo;
+    private final AlarmService alarmService;
     private final TdengineService tdengineService;
 
     public MiniAppController(AlarmRepository alarmRepo, WardRepository wardRepo,
@@ -47,7 +51,11 @@ public class MiniAppController {
                              ClientUserRepository clientUserRepo, UserRepository userRepo,
                              DoctorRepository doctorRepo, ServiceOrderRepository orderRepo,
                              HealthDataRepository healthDataRepo, OrganizationRepository orgRepo,
-                             NewsPostRepository newsRepo, TdengineService tdengineService) {
+                             NewsPostRepository newsRepo,
+                             GuardianAlarmSettingRepository guardianAlarmSettingRepo,
+                             FeedbackSubmissionRepository feedbackRepo,
+                             AlarmService alarmService,
+                             TdengineService tdengineService) {
         this.alarmRepo = alarmRepo;
         this.wardRepo = wardRepo;
         this.deviceRepo = deviceRepo;
@@ -59,13 +67,14 @@ public class MiniAppController {
         this.healthDataRepo = healthDataRepo;
         this.orgRepo = orgRepo;
         this.newsRepo = newsRepo;
+        this.guardianAlarmSettingRepo = guardianAlarmSettingRepo;
+        this.feedbackRepo = feedbackRepo;
+        this.alarmService = alarmService;
         this.tdengineService = tdengineService;
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // Inner VO / request record types
-    // ══════════════════════════════════════════════════════════════════
-
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // Inner VO / request record types
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     record FamilyRef(Long id, String address, String community) {}
     record MemberRef(String name, Integer age) {}
     record GuardianRef(String name, String phone) {}
@@ -103,8 +112,10 @@ public class MiniAppController {
 
     record HistoryDataVo(List<String> hours, List<Double> values, String unit) {}
 
-    record SummaryVo(int serviceFamily, int guardianCount, int todayAlarm,
-                     int nurseCount, int totalAppt, int todayVisit) {}
+    record AlarmTypeBar(String type, int count) {}
+
+    record SummaryVo(int familyCount, int totalAppt, int completedAppt,
+                     int handledAlarms, List<AlarmTypeBar> alarmTypeBars) {}
 
     record HandleAlarmRequest(Boolean calledGuardian, Boolean memberDanger,
                                Boolean handled, String remark) {}
@@ -127,10 +138,18 @@ public class MiniAppController {
                                 String chronicDisease, String remark,
                                 String emergencyPhone, String deviceId) {}
 
-    // ══════════════════════════════════════════════════════════════════
-    // Helpers
-    // ══════════════════════════════════════════════════════════════════
+    record StaffProfileUpdateRequest(String name, String department, String title, String idCard) {}
 
+    record GuardianProfileUpdateRequest(String name, String phone) {}
+
+    record GuardianAlarmSettingRequest(Boolean hrAlert, Boolean bpAlert, Boolean fallAlert, Boolean bedAlert) {}
+
+    record FeedbackRequest(@NotBlank String type, @NotBlank String content) {}
+
+    record EmergencyRequest(Long memberId, String note) {}
+
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // Helpers
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     private String fmt(Instant instant) {
         return instant == null ? null : DT_FMT.format(instant);
     }
@@ -147,7 +166,8 @@ public class MiniAppController {
             case HEART_RATE -> "心率报警";
             case BREATH_RATE -> "呼吸频率报警";
             case FALL -> "跌倒报警";
-            case DEVICE_OFFLINE -> "停止活动报警";
+            case DEVICE_OFFLINE -> "设备离线报警";
+            case EMERGENCY -> "紧急求助";
         };
     }
 
@@ -191,6 +211,86 @@ public class MiniAppController {
         try { return Long.parseLong(value); } catch (NumberFormatException e) { return null; }
     }
 
+    private ClientUser requireCurrentClientUser() {
+        return currentClientUser().orElseThrow(() -> new BizException(401, "用户未登录"));
+    }
+
+    private Family primaryFamilyOfGuardian(Long guardianId) {
+        return familyRepo.findByGuardiansId(guardianId).stream().findFirst().orElse(null);
+    }
+
+    private String resolveUserDisplayName(Long id) {
+        if (id == null) return null;
+        return clientUserRepo.findById(id)
+                .map(ClientUser::getName)
+                .or(() -> userRepo.findById(id).map(UserAccount::getUsername))
+                .orElse(null);
+    }
+
+    private String resolveUserPhone(Long id) {
+        if (id == null) return null;
+        return clientUserRepo.findById(id)
+                .map(ClientUser::getMobile)
+                .or(() -> userRepo.findById(id).map(UserAccount::getPhone))
+                .orElse(null);
+    }
+
+    private boolean shouldRestrictAlarmAccess() {
+        String role = SecurityUtil.currentRole();
+        return "GUARDIAN".equals(role)
+                || "CAREGIVER".equals(role)
+                || "INSTITUTION".equals(role)
+                || "NURSE".equals(role)
+                || "DOCTOR".equals(role);
+    }
+
+    private Set<Long> accessibleMemberIds() {
+        String role = SecurityUtil.currentRole();
+        if ("GUARDIAN".equals(role)) {
+            return currentClientUser()
+                    .map(cu -> wardRepo.findByDeviceGuardianId(cu.getId()).stream()
+                            .map(Ward::getMemberId)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toSet()))
+                    .orElseGet(Set::of);
+        }
+
+        if ("CAREGIVER".equals(role) || "INSTITUTION".equals(role)) {
+            return allowedFamilies().stream()
+                    .flatMap(f -> deviceRepo.findByFamilyId(f.getId()).stream())
+                    .flatMap(d -> d.getWards() != null
+                            ? d.getWards().stream()
+                            : java.util.stream.Stream.<Ward>empty())
+                    .map(Ward::getMemberId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+        }
+
+        if ("NURSE".equals(role) || "DOCTOR".equals(role)) {
+            Long orgId = SecurityUtil.currentOrgId();
+            if (orgId == null) return Set.of();
+            return wardRepo.findByDeviceFamilyOrgId(orgId).stream()
+                    .map(Ward::getMemberId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+        }
+
+        return Set.of();
+    }
+
+    private Alarm requireAccessibleAlarm(Long id) {
+        Alarm alarm = alarmRepo.findById(id)
+                .orElseThrow(() -> new BizException(4004, "报警记录不存在"));
+        if (shouldRestrictAlarmAccess()) {
+            Long targetId = alarm.getTargetId();
+            Set<Long> memberIds = accessibleMemberIds();
+            if (targetId == null || !memberIds.contains(targetId)) {
+                throw new BizException(4003, "无权访问该报警记录");
+            }
+        }
+        return alarm;
+    }
+
     private AlarmVo toAlarmVo(Alarm a) {
         Long targetId = a.getTargetId();
         Ward ward = targetId != null ? wardRepo.findById(targetId).orElse(null) : null;
@@ -209,11 +309,7 @@ public class MiniAppController {
                 ? new GuardianRef(guardian.getName(), guardian.getMobile())
                 : new GuardianRef("未知监护人", null);
 
-        String handleNurse = null;
-        if (a.getHandledBy() != null) {
-            handleNurse = userRepo.findById(a.getHandledBy())
-                    .map(UserAccount::getUsername).orElse(null);
-        }
+        String handleNurse = resolveUserDisplayName(a.getHandledBy());
         return new AlarmVo(a.getId(), fmt(a.getOccurredAt()), alarmTypeLabel(a.getAlarmType()),
                 alarmStatusStr(a.getHandleStatus()), fRef, mRef, gRef,
                 fmt(a.getHandledAt()), handleNurse, a.getHandleRemark());
@@ -235,8 +331,7 @@ public class MiniAppController {
                 ? new GuardianRef(guardian.getName(), guardian.getMobile())
                 : new GuardianRef(null, null);
 
-        String doctorName = o.getCreatedById() != null
-                ? userRepo.findById(o.getCreatedById()).map(UserAccount::getUsername).orElse(null) : null;
+        String doctorName = resolveUserDisplayName(o.getCreatedById());
         String typeLabel = o.getDisplayType() != null ? o.getDisplayType()
                 : (o.getOrderType() != null ? o.getOrderType().name() : null);
 
@@ -274,10 +369,8 @@ public class MiniAppController {
                 fmt(d.getBindTime()), members);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // ALARMS
-    // ══════════════════════════════════════════════════════════════════
-
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // ALARMS
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     @GetMapping("/alarms")
     public ApiResponse<List<AlarmVo>> listAlarms(
             @RequestParam(required = false) String status,
@@ -287,9 +380,24 @@ public class MiniAppController {
             @RequestParam(required = false) String memberId) {
 
         Long memberIdLong = parseLongParam(memberId);
-        List<Alarm> alarms = memberIdLong != null
-                ? alarmRepo.findByTargetId(memberIdLong)
-                : alarmRepo.findAllByOrderByOccurredAtDesc();
+        List<Alarm> alarms;
+        if (shouldRestrictAlarmAccess()) {
+            Set<Long> memberIds = accessibleMemberIds();
+            if (memberIdLong != null) {
+                if (!memberIds.contains(memberIdLong)) {
+                    return ApiResponse.ok(List.of());
+                }
+                alarms = alarmRepo.findByTargetId(memberIdLong);
+            } else {
+                alarms = memberIds.isEmpty()
+                        ? List.of()
+                        : alarmRepo.findByTargetIdIn(new ArrayList<>(memberIds));
+            }
+        } else {
+            alarms = memberIdLong != null
+                    ? alarmRepo.findByTargetId(memberIdLong)
+                    : alarmRepo.findAllByOrderByOccurredAtDesc();
+        }
 
         if (status != null && !status.isBlank()) {
             AlarmHandleStatus hs = parseAlarmStatus(status);
@@ -319,16 +427,13 @@ public class MiniAppController {
 
     @GetMapping("/alarms/{id}")
     public ApiResponse<AlarmVo> getAlarm(@PathVariable Long id) {
-        Alarm alarm = alarmRepo.findById(id)
-                .orElseThrow(() -> new BizException(4004, "报警记录不存在"));
-        return ApiResponse.ok(toAlarmVo(alarm));
+        return ApiResponse.ok(toAlarmVo(requireAccessibleAlarm(id)));
     }
 
     @PostMapping("/alarms/{id}/handle")
     public ApiResponse<Void> handleAlarm(@PathVariable Long id,
                                           @RequestBody HandleAlarmRequest body) {
-        Alarm alarm = alarmRepo.findById(id)
-                .orElseThrow(() -> new BizException(4004, "报警记录不存在"));
+        Alarm alarm = requireAccessibleAlarm(id);
         alarm.setHandleStatus(AlarmHandleStatus.HANDLED);
         alarm.setHandledBy(SecurityUtil.currentUserId());
         alarm.setHandledAt(Instant.now());
@@ -339,8 +444,7 @@ public class MiniAppController {
 
     @PostMapping("/alarms/{id}/ignore")
     public ApiResponse<Void> ignoreAlarm(@PathVariable Long id) {
-        Alarm alarm = alarmRepo.findById(id)
-                .orElseThrow(() -> new BizException(4004, "报警记录不存在"));
+        Alarm alarm = requireAccessibleAlarm(id);
         alarm.setHandleStatus(AlarmHandleStatus.IGNORED);
         alarm.setHandledBy(SecurityUtil.currentUserId());
         alarm.setHandledAt(Instant.now());
@@ -348,14 +452,14 @@ public class MiniAppController {
         return ApiResponse.ok(null);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // APPOINTMENTS
-    // ══════════════════════════════════════════════════════════════════
-
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // APPOINTMENTS
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     @GetMapping("/appointments")
     public ApiResponse<List<ApptVo>> listAppointments(
             @RequestParam(defaultValue = "all") String status,
-            @RequestParam(required = false) String doctorName) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
 
         Long uid = SecurityUtil.currentUserId();
         String role = SecurityUtil.currentRole();
@@ -369,10 +473,9 @@ public class MiniAppController {
                     .filter(o -> guardianClientId.equals(o.getGuardianId()))
                     .collect(Collectors.toList());
         } else if ("CAREGIVER".equals(role) || "NURSE".equals(role) || "DOCTOR".equals(role)) {
-            // 医护端：只看分配给自己的预约（不含 pending 待处理）
+            // 閸栫粯濮㈢粩顖ょ窗閸欘亞婀呴崚鍡涘帳缂佹瑨鍤滃杈╂畱妫板嫮瀹抽敍鍫滅瑝閸?pending 瀵板懎顦╅悶鍡礆
             orders = orderRepo.findByNurseIdOrderByCreatedAtDesc(uid);
         } else if ("INSTITUTION".equals(role)) {
-            // 机构端：只看本机构的预约（按 orgId 过滤）
             Long orgId = SecurityUtil.currentOrgId();
             orders = orgId != null
                     ? orderRepo.findByOrgIdOrderByCreatedAtDesc(orgId)
@@ -390,24 +493,69 @@ public class MiniAppController {
             };
             orders = orders.stream().filter(o -> o.getStatus() == sos).collect(Collectors.toList());
         }
-        return ApiResponse.ok(orders.stream().map(this::toApptVo).collect(Collectors.toList()));
+        if (startDate != null && !startDate.isBlank()) {
+            Instant start = LocalDate.parse(startDate).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
+            orders = orders.stream()
+                    .filter(o -> o.getAppointmentTime() != null && !o.getAppointmentTime().isBefore(start))
+                    .collect(Collectors.toList());
+        }
+        if (endDate != null && !endDate.isBlank()) {
+            Instant end = LocalDate.parse(endDate).plusDays(1).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
+            orders = orders.stream()
+                    .filter(o -> o.getAppointmentTime() != null && o.getAppointmentTime().isBefore(end))
+                    .collect(Collectors.toList());
+        }
+
+        List<ApptVo> vos = orders.stream().map(this::toApptVo).collect(Collectors.toList());
+        if (keyword != null && !keyword.isBlank()) {
+            String lower = keyword.toLowerCase(Locale.ROOT);
+            vos = vos.stream().filter(v ->
+                    (v.type() != null && v.type().toLowerCase(Locale.ROOT).contains(lower)) ||
+                    (v.requirement() != null && v.requirement().toLowerCase(Locale.ROOT).contains(lower)) ||
+                    (v.member() != null && v.member().name() != null && v.member().name().toLowerCase(Locale.ROOT).contains(lower)) ||
+                    (v.guardian() != null && v.guardian().name() != null && v.guardian().name().toLowerCase(Locale.ROOT).contains(lower)) ||
+                    (v.family() != null && v.family().address() != null && v.family().address().toLowerCase(Locale.ROOT).contains(lower)) ||
+                    (v.acceptNurse() != null && v.acceptNurse().toLowerCase(Locale.ROOT).contains(lower))
+            ).collect(Collectors.toList());
+        }
+        return ApiResponse.ok(vos);
     }
 
     @PostMapping("/appointments")
     public ApiResponse<ApptVo> createAppointment(@Valid @RequestBody CreateApptRequest body) {
         ServiceOrder o = new ServiceOrder();
         o.setDisplayType(body.type());
-        o.setMemberId(body.memberId());
-        o.setFamilyId(body.familyId());
-        o.setGuardianId(body.guardianId());
-        o.setCreatedById(SecurityUtil.currentUserId());
-        // 自动填充 orgId：通过 familyId 查 Family.orgId
-        if (body.familyId() != null) {
-            familyRepo.findById(body.familyId()).ifPresent(f -> o.setOrgId(f.getOrgId()));
+        String role = SecurityUtil.currentRole();
+        Long currentUid = SecurityUtil.currentUserId();
+
+        Long familyId = body.familyId();
+        Long guardianId = body.guardianId();
+        Long memberId = body.memberId();
+
+        if ("GUARDIAN".equals(role)) {
+            guardianId = currentUid;
+            if (familyId == null) {
+                Family family = primaryFamilyOfGuardian(currentUid);
+                familyId = family != null ? family.getId() : null;
+            }
+            if (memberId == null) {
+                List<Ward> wards = wardRepo.findByDeviceGuardianId(currentUid);
+                if (!wards.isEmpty()) {
+                    memberId = wards.get(0).getMemberId();
+                }
+            }
         }
-        if (o.getOrgId() == null && body.guardianId() != null) {
-            // 备选：通过 guardianId 找家庭
-            familyRepo.findByGuardiansId(body.guardianId()).stream()
+
+        o.setMemberId(memberId);
+        o.setFamilyId(familyId);
+        o.setGuardianId(guardianId);
+        o.setCreatedById(SecurityUtil.currentUserId());
+
+        if (familyId != null) {
+            familyRepo.findById(familyId).ifPresent(f -> o.setOrgId(f.getOrgId()));
+        }
+        if (o.getOrgId() == null && guardianId != null) {
+            familyRepo.findByGuardiansId(guardianId).stream()
                     .filter(f -> f.getOrgId() != null)
                     .findFirst()
                     .ifPresent(f -> o.setOrgId(f.getOrgId()));
@@ -436,11 +584,12 @@ public class MiniAppController {
         ServiceOrder o = orderRepo.findById(id)
                 .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
         Long uid = SecurityUtil.currentUserId();
-        UserAccount nurse = uid != null ? userRepo.findById(uid).orElse(null) : null;
+        String nurseName = resolveUserDisplayName(uid);
+        String nursePhone = resolveUserPhone(uid);
         o.setStatus(ServiceOrderStatus.ACCEPTED);
         o.setNurseId(uid);
-        o.setNurseName(nurse != null ? nurse.getUsername() : null);
-        o.setNursePhone(nurse != null ? nurse.getPhone() : null);
+        o.setNurseName(nurseName);
+        o.setNursePhone(nursePhone);
         o.setAcceptTime(Instant.now());
         orderRepo.save(o);
         return ApiResponse.ok(null);
@@ -451,16 +600,15 @@ public class MiniAppController {
                                                   @RequestBody DispatchRequest body) {
         ServiceOrder o = orderRepo.findById(id)
                 .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
-        UserAccount nurse = body.nurseId() != null ? userRepo.findById(body.nurseId()).orElse(null) : null;
+        ClientUser nurse = body.nurseId() != null ? clientUserRepo.findById(body.nurseId()).orElse(null) : null;
         Long orgId = SecurityUtil.currentOrgId();
         String orgName = orgId != null
                 ? orgRepo.findById(orgId).map(Organization::getName).orElse("机构") : "机构";
-        o.setStatus(ServiceOrderStatus.ACCEPTED);
+        o.setStatus(ServiceOrderStatus.PENDING);
         o.setNurseId(body.nurseId());
-        o.setNurseName(body.nurseName() != null ? body.nurseName()
-                : (nurse != null ? nurse.getUsername() : null));
-        o.setNursePhone(nurse != null ? nurse.getPhone() : null);
-        o.setAcceptTime(Instant.now());
+        o.setNurseName(body.nurseName() != null ? body.nurseName() : (nurse != null ? nurse.getName() : null));
+        o.setNursePhone(nurse != null ? nurse.getMobile() : null);
+        o.setAcceptTime(null);
         o.setDispatchedBy(orgName);
         orderRepo.save(o);
         return ApiResponse.ok(null);
@@ -476,7 +624,9 @@ public class MiniAppController {
                 o.setVisitTime(LocalDateTime.parse(body.visitTime(),
                         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
                         .atZone(ZoneId.of("Asia/Shanghai")).toInstant());
-            } catch (Exception ignored) { o.setVisitTime(Instant.now()); }
+            } catch (Exception ignored) {
+                o.setVisitTime(Instant.now());
+            }
         } else {
             o.setVisitTime(Instant.now());
         }
@@ -488,11 +638,9 @@ public class MiniAppController {
         return ApiResponse.ok(null);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // INSTITUTION (机构管理端专属接口)
-    // ══════════════════════════════════════════════════════════════════
-
-    /** GET /api/mini/institution/nurses — 本机构医护人员列表（ClientUser role=CAREGIVER） */
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // INSTITUTION (閺堢儤鐎粻锛勬倞缁旑垯绗撶仦鐐村复閸?
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
+    /** GET /api/mini/institution/nurses 閳?閺堫剚婧€閺嬪嫬灏伴幎銈勬眽閸涙ê鍨悰顭掔礄ClientUser role=CAREGIVER閿?*/
     @GetMapping("/institution/nurses")
     public ApiResponse<List<NurseListItem>> institutionNurses() {
         Long orgId = SecurityUtil.currentOrgId();
@@ -505,7 +653,7 @@ public class MiniAppController {
         );
     }
 
-    /** GET /api/mini/institution/families — 本机构绑定家庭列表 */
+    /** GET /api/mini/institution/families 閳?閺堫剚婧€閺嬪嫮绮︾€规艾顔嶆惔顓炲灙鐞?*/
     @GetMapping("/institution/families")
     public ApiResponse<List<FamilyVo>> institutionFamilies() {
         Long orgId = SecurityUtil.currentOrgId();
@@ -521,25 +669,18 @@ public class MiniAppController {
     public ApiResponse<List<NurseListItem>> nurseList(
             @RequestParam(required = false) Long orgId) {
         Long ctxOrgId = orgId != null ? orgId : SecurityUtil.currentOrgId();
-        return ApiResponse.ok(userRepo.findAll().stream()
-                .filter(u -> {
-                    UserRole r = u.getRole();
-                    return (r == UserRole.NURSE || r == UserRole.DOCTOR)
-                            && u.getStatus() == UserStatus.ENABLED
-                            && (ctxOrgId == null || ctxOrgId.equals(u.getOrgId()));
-                })
-                .map(u -> new NurseListItem(u.getId(), u.getUsername(), u.getPhone(),
-                        u.getRole().name(), true))
+        return ApiResponse.ok(clientUserRepo.findAll().stream()
+                .filter(u -> u.getRole() == ClientUserRole.CAREGIVER
+                        && (ctxOrgId == null || ctxOrgId.equals(u.getOrgId())))
+                .map(u -> new NurseListItem(u.getId(), u.getName(), u.getMobile(),
+                        "caregiver", true))
                 .collect(Collectors.toList()));
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // DEVICES
-    // ══════════════════════════════════════════════════════════════════
-
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // DEVICES
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     @PostMapping("/device/bind")
     public ApiResponse<DeviceVo> bindDevice(@Valid @RequestBody BindDeviceRequest body) {
-        // 设备不存在时自动创建（设备码由小程序扫码/手动输入）
         Device device = deviceRepo.findById(body.deviceCode()).orElseGet(() -> {
             Device d = new Device();
             d.setDeviceId(body.deviceCode());
@@ -558,7 +699,6 @@ public class MiniAppController {
         Optional<ClientUser> cuOpt = currentClientUser();
         cuOpt.ifPresent(cu -> {
             device.setGuardian(cu);
-
             List<Family> families = familyRepo.findByGuardiansId(cu.getId());
             if (!families.isEmpty()) {
                 Family family = families.get(0);
@@ -602,17 +742,16 @@ public class MiniAppController {
         return ApiResponse.ok(devices.stream().map(this::toDeviceVo).collect(Collectors.toList()));
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // FAMILIES
-    // ══════════════════════════════════════════════════════════════════
-
-    /** 返回当前用户有权查看的家庭列表
-     *  - CAREGIVER: 只看绑定到自己（caregiverId = currentUserId）的家庭
-     *  - INSTITUTION: 看本机构 orgId 的全部家庭
-     *  - 其他: 全部
-     */
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // FAMILIES
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
+    /** 鏉╂柨娲栬ぐ鎾冲閻劍鍩涢張澶嬫綀閺屻儳婀呴惃鍕啀鎼搭厼鍨悰?     *  - CAREGIVER: 閸欘亞婀呯紒鎴濈暰閸掓媽鍤滃鎲嬬礄caregiverId = currentUserId閿涘娈戠€硅泛娑?     *  - INSTITUTION: 閻婀伴張鐑樼€?orgId 閻ㄥ嫬鍙忛柈銊ヮ啀鎼?     *  - 閸忔湹绮? 閸忋劑鍎?     */
     private List<Family> allowedFamilies() {
         String role = SecurityUtil.currentRole();
+        if ("GUARDIAN".equals(role)) {
+            return currentClientUser()
+                    .map(cu -> familyRepo.findByGuardiansId(cu.getId()))
+                    .orElse(List.of());
+        }
         if ("CAREGIVER".equals(role)) {
             Long uid = SecurityUtil.currentUserId();
             return uid != null ? familyRepo.findByCaregiverId(uid) : List.of();
@@ -679,8 +818,8 @@ public class MiniAppController {
 
         return new FamilyVo(f.getId(), f.getName(), f.getAddress(), f.getName(),
                 lat, lng, hasAlarm,
-                hasAlarm ? "重点关注" : "一般",
-                hasAlarm ? "报警中" : "正常",
+                hasAlarm ? "重点关注" : "一般关注",
+                hasAlarm ? "alarm" : "normal",
                 gRef, members);
     }
 
@@ -705,10 +844,8 @@ public class MiniAppController {
         }).collect(Collectors.toList()));
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MEMBERS (Wards)
-    // ══════════════════════════════════════════════════════════════════
-
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // MEMBERS (Wards)
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     @GetMapping("/member/list")
     public ApiResponse<List<MemberVo>> memberList() {
         String role = SecurityUtil.currentRole();
@@ -782,10 +919,8 @@ public class MiniAppController {
         return ApiResponse.ok(null);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MONITOR
-    // ══════════════════════════════════════════════════════════════════
-
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // MONITOR
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     @GetMapping("/monitor/realtime")
     public ApiResponse<MonitorVo> realtimeMonitor(@RequestParam(required = false) String memberId) {
         Long id = parseLongParam(memberId);
@@ -805,7 +940,7 @@ public class MiniAppController {
                 null, ts,
                 heartStatus(heartRate != null ? heartRate.doubleValue() : null),
                 breathStatus(breathRate != null ? breathRate.doubleValue() : null),
-                "正常"));
+                Boolean.TRUE.equals(isFall) ? "异常" : "正常"));
     }
 
     @GetMapping("/monitor/history")
@@ -848,20 +983,38 @@ public class MiniAppController {
         return (v < 12 || v > 20) ? "异常" : "正常";
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // STAFF PROFILE
-    // ══════════════════════════════════════════════════════════════════
-
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // STAFF PROFILE
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     @GetMapping("/guardian/profile")
     public ApiResponse<Map<String, Object>> guardianProfile() {
-        Long uid = SecurityUtil.currentUserId();
-        ClientUser cu = clientUserRepo.findById(uid)
-                .orElseThrow(() -> new BizException(4004, "用户不存在"));
+        ClientUser cu = requireCurrentClientUser();
         Map<String, Object> info = new LinkedHashMap<>();
+        info.put("id", cu.getId());
         info.put("name", cu.getName());
         info.put("phone", cu.getMobile());
         info.put("role", "guardian");
         return ApiResponse.ok(info);
+    }
+
+    @PutMapping("/guardian/profile")
+    public ApiResponse<Map<String, Object>> updateGuardianProfile(@RequestBody GuardianProfileUpdateRequest body) {
+        ClientUser cu = requireCurrentClientUser();
+        if (body.name() != null && !body.name().isBlank()) {
+            cu.setName(body.name().trim());
+        }
+        if (body.phone() != null && !body.phone().isBlank()) {
+            String phone = body.phone().trim();
+            if (!phone.equals(cu.getMobile())) {
+                clientUserRepo.findByMobile(phone)
+                        .filter(existing -> !existing.getId().equals(cu.getId()))
+                        .ifPresent(existing -> {
+                            throw new BizException(4001, "手机号已被其他账号使用");
+                        });
+                cu.setMobile(phone);
+            }
+        }
+        clientUserRepo.save(cu);
+        return guardianProfile();
     }
 
     @GetMapping("/staff/profile")
@@ -869,39 +1022,78 @@ public class MiniAppController {
         Long uid = SecurityUtil.currentUserId();
         String role = SecurityUtil.currentRole();
 
-        // CAREGIVER / INSTITUTION 角色 → 从 client_user 表查
         if ("CAREGIVER".equals(role) || "INSTITUTION".equals(role)) {
             ClientUser cu = clientUserRepo.findById(uid)
                     .orElseThrow(() -> new BizException(4004, "用户不存在"));
             String orgName = resolveOrgName(cu.getOrgId());
             Map<String, Object> info = new LinkedHashMap<>();
+            info.put("id", cu.getId());
             info.put("name", cu.getName());
             info.put("phone", cu.getMobile());
+            info.put("department", cu.getDepartment());
+            info.put("title", cu.getTitle());
+            info.put("idCard", cu.getIdCard());
             info.put("orgName", orgName);
             info.put("orgId", cu.getOrgId());
             info.put("role", "INSTITUTION".equals(role) ? "机构管理员" : "医护人员");
             return ApiResponse.ok(info);
         }
 
-        // NURSE / DOCTOR / ADMIN → 从 user_account 表查
         UserAccount user = userRepo.findById(uid)
                 .orElseThrow(() -> new BizException(4004, "用户不存在"));
         Long orgId = SecurityUtil.currentOrgId();
         String orgName = orgId != null
                 ? orgRepo.findById(orgId).map(Organization::getName).orElse("") : "";
-        String roleName = user.getRole() != null ? switch (user.getRole()) {
-            case DOCTOR -> "医生";
-            case NURSE  -> "护士";
-            case ADMIN  -> "管理员";
-            default     -> "医护人员";
-        } : "医护人员";
 
         Map<String, Object> info = new LinkedHashMap<>();
+        info.put("id", user.getId());
         info.put("name", user.getUsername());
         info.put("phone", user.getPhone());
+        info.put("department", null);
+        info.put("title", null);
+        info.put("idCard", null);
         info.put("orgName", orgName);
         info.put("orgId", orgId);
-        info.put("role", roleName);
+        info.put("role", resolveStaffRoleLabel(user.getRole()));
+        return ApiResponse.ok(info);
+    }
+
+    @PutMapping("/staff/profile")
+    public ApiResponse<Map<String, Object>> updateStaffProfile(@RequestBody StaffProfileUpdateRequest body) {
+        ClientUser cu = requireCurrentClientUser();
+        if (body.name() != null && !body.name().isBlank()) {
+            cu.setName(body.name().trim());
+        }
+        if (body.department() != null) {
+            cu.setDepartment(body.department().trim());
+        }
+        if (body.title() != null) {
+            cu.setTitle(body.title().trim());
+        }
+        if (body.idCard() != null) {
+            cu.setIdCard(body.idCard().trim());
+        }
+        clientUserRepo.save(cu);
+        return staffProfile();
+    }
+
+    @GetMapping("/staff/org-info")
+    public ApiResponse<Map<String, Object>> staffOrgInfo() {
+        Long orgId = SecurityUtil.currentOrgId();
+        if (orgId == null) {
+            orgId = currentClientUser().map(ClientUser::getOrgId).orElse(null);
+        }
+        Organization org = orgId != null ? orgRepo.findById(orgId).orElse(null) : null;
+        if (org == null) {
+            return ApiResponse.ok(Map.of());
+        }
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("name", org.getName());
+        info.put("type", org.getType() != null ? org.getType().name() : null);
+        info.put("region", org.getRegion());
+        info.put("address", org.getAddress() != null ? org.getAddress() : org.getRegion());
+        info.put("phone", org.getContactPhone());
+        info.put("license", org.getLicenseNo());
         return ApiResponse.ok(info);
     }
 
@@ -910,43 +1102,73 @@ public class MiniAppController {
         return orgRepo.findById(orgId).map(Organization::getName).orElse(null);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // SUMMARY
-    // ══════════════════════════════════════════════════════════════════
-
-    @GetMapping("/summary/nurse")
-    public ApiResponse<SummaryVo> nurseSummary() {
-        int serviceFamily = (int) familyRepo.count();
-        int guardianCount = (int) userRepo.findAll().stream()
-                .filter(u -> u.getRole() == UserRole.GUARDIAN).count();
-        Instant todayStart = LocalDate.now(ZoneId.of("Asia/Shanghai"))
-                .atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
-        int todayAlarm = alarmRepo.findByOccurredAtBetween(todayStart, Instant.now()).stream()
-                .filter(a -> a.getHandleStatus() == AlarmHandleStatus.UNHANDLED)
-                .mapToInt(a -> 1).sum();
-        int nurseCount = (int) userRepo.findAll().stream()
-                .filter(u -> u.getRole() == UserRole.NURSE || u.getRole() == UserRole.DOCTOR).count();
-        int totalAppt = (int) orderRepo.count();
-        int todayVisit = (int) orderRepo.findAllByOrderByCreatedAtDesc().stream()
-                .filter(o -> o.getStatus() == ServiceOrderStatus.COMPLETED
-                        && o.getVisitTime() != null
-                        && o.getVisitTime().isAfter(todayStart))
-                .count();
-        return ApiResponse.ok(new SummaryVo(serviceFamily, guardianCount, todayAlarm,
-                nurseCount, totalAppt, todayVisit));
+    private String resolveStaffRoleLabel(UserRole role) {
+        if (role == null) {
+            return "医护人员";
+        }
+        return switch (role) {
+            case DOCTOR -> "医生";
+            case NURSE -> "护士";
+            case ADMIN -> "管理员";
+            case INSTITUTION -> "机构管理员";
+            case GUARDIAN -> "家属";
+        };
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // SERVICE (guardian-facing tab)
-    // ══════════════════════════════════════════════════════════════════
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // SUMMARY
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
+    @GetMapping("/summary/nurse")
+    public ApiResponse<SummaryVo> nurseSummary() {
+        List<Family> families = allowedFamilies();
+        Set<Long> familyIds = families.stream().map(Family::getId).collect(Collectors.toSet());
+        Set<Long> memberIds = families.stream()
+                .flatMap(f -> deviceRepo.findByFamilyId(f.getId()).stream())
+                .flatMap(d -> d.getWards() != null ? d.getWards().stream() : java.util.stream.Stream.<Ward>empty())
+                .map(Ward::getMemberId)
+                .collect(Collectors.toSet());
 
+        List<ServiceOrder> orders;
+        String role = SecurityUtil.currentRole();
+        Long uid = SecurityUtil.currentUserId();
+        if ("INSTITUTION".equals(role)) {
+            Long orgId = SecurityUtil.currentOrgId();
+            orders = orgId != null ? orderRepo.findByOrgIdOrderByCreatedAtDesc(orgId) : List.of();
+        } else if ("CAREGIVER".equals(role)) {
+            orders = uid != null ? orderRepo.findByNurseIdOrderByCreatedAtDesc(uid) : List.of();
+        } else {
+            orders = orderRepo.findAllByOrderByCreatedAtDesc().stream()
+                    .filter(o -> o.getFamilyId() != null && familyIds.contains(o.getFamilyId()))
+                    .collect(Collectors.toList());
+        }
+
+        List<Alarm> alarms = memberIds.isEmpty() ? List.of() : alarmRepo.findByTargetIdIn(new ArrayList<>(memberIds));
+        int handledAlarms = (int) alarms.stream()
+                .filter(a -> a.getHandleStatus() == AlarmHandleStatus.HANDLED)
+                .count();
+        List<AlarmTypeBar> bars = alarms.stream()
+                .collect(Collectors.groupingBy(Alarm::getAlarmType, Collectors.counting()))
+                .entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(5)
+                .map(e -> new AlarmTypeBar(alarmTypeLabel(e.getKey()), e.getValue().intValue()))
+                .collect(Collectors.toList());
+
+        int totalAppt = orders.size();
+        int completedAppt = (int) orders.stream()
+                .filter(o -> o.getStatus() == ServiceOrderStatus.COMPLETED)
+                .count();
+        return ApiResponse.ok(new SummaryVo(families.size(), totalAppt, completedAppt, handledAlarms, bars));
+    }
+
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // SERVICE (guardian-facing tab)
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     @GetMapping("/service/doctor")
     public ApiResponse<Map<String, Object>> doctorInfo() {
-        Optional<ClientUser> cu = currentClientUser();
-        if (cu.isEmpty()) return ApiResponse.ok(null);
-        Device device = deviceRepo.findByGuardianId(cu.get().getId()).stream().findFirst().orElse(null);
-
-        // ── 优先：device.doctorId → Doctor 实体 ──
+        ClientUser guardian = currentClientUser().orElse(null);
+        if (guardian == null) {
+            return ApiResponse.ok(null);
+        }
+        Device device = deviceRepo.findByGuardianId(guardian.getId()).stream().findFirst().orElse(null);
         if (device != null && device.getDoctorId() != null) {
             Doctor doctor = doctorRepo.findById(device.getDoctorId()).orElse(null);
             if (doctor != null) {
@@ -964,34 +1186,34 @@ public class MiniAppController {
             }
         }
 
-        // ── 降级：通过家庭 orgId → 找机构下的 CAREGIVER 展示 ──
-        // 先确定家庭：device.familyId 优先；若为 null，通过 guardianId 查家庭
-        Optional<ClientUser> cuOpt = currentClientUser();
-        if (cuOpt.isEmpty()) return ApiResponse.ok(null);
-
         Family family = null;
         if (device != null && device.getFamilyId() != null) {
             family = familyRepo.findById(device.getFamilyId()).orElse(null);
         }
         if (family == null) {
-            // 通过监护人 ID 查找关联家庭（注册时自动创建）
-            List<Family> families = familyRepo.findByGuardiansId(cuOpt.get().getId());
-            if (!families.isEmpty()) family = families.get(0);
+            List<Family> families = familyRepo.findByGuardiansId(guardian.getId());
+            if (!families.isEmpty()) {
+                family = families.get(0);
+            }
         }
-        if (family == null || family.getOrgId() == null) return ApiResponse.ok(null);
+        if (family == null || family.getOrgId() == null) {
+            return ApiResponse.ok(null);
+        }
 
         final Long orgId = family.getOrgId();
         ClientUser caregiver = clientUserRepo.findByOrgId(orgId).stream()
                 .filter(u -> u.getRole() == ClientUserRole.CAREGIVER)
                 .findFirst().orElse(null);
-        if (caregiver == null) return ApiResponse.ok(null);
+        if (caregiver == null) {
+            return ApiResponse.ok(null);
+        }
         Organization org = orgRepo.findById(orgId).orElse(null);
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("id", caregiver.getId());
         info.put("name", caregiver.getName());
         info.put("phone", caregiver.getMobile());
         info.put("institution", org != null ? org.getName() : null);
-        info.put("title", "护理人员");
+        info.put("title", caregiver.getTitle() != null ? caregiver.getTitle() : "医护人员");
         info.put("avatar", null);
         info.put("serviceFamilies", 0);
         return ApiResponse.ok(info);
@@ -1009,16 +1231,77 @@ public class MiniAppController {
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("id", org.getId());
         info.put("name", org.getName());
-        info.put("address", org.getRegion());
+        info.put("address", org.getAddress() != null ? org.getAddress() : org.getRegion());
         info.put("phone", org.getContactPhone());
         info.put("type", org.getType() != null ? org.getType().name() : null);
         return ApiResponse.ok(info);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // DOCTOR DETAIL (mini-app facing)
-    // ══════════════════════════════════════════════════════════════════
+    @GetMapping("/guardian/alarm-settings")
+    public ApiResponse<Map<String, Object>> guardianAlarmSettings() {
+        Long guardianId = SecurityUtil.currentUserId();
+        GuardianAlarmSetting setting = guardianAlarmSettingRepo.findById(guardianId).orElseGet(() -> {
+            GuardianAlarmSetting created = new GuardianAlarmSetting();
+            created.setGuardianId(guardianId);
+            return guardianAlarmSettingRepo.save(created);
+        });
+        return ApiResponse.ok(Map.of(
+                "hrAlert", setting.isHrAlert(),
+                "bpAlert", setting.isBpAlert(),
+                "fallAlert", setting.isFallAlert(),
+                "bedAlert", setting.isBedAlert()
+        ));
+    }
 
+    @PutMapping("/guardian/alarm-settings")
+    public ApiResponse<Map<String, Object>> updateGuardianAlarmSettings(@RequestBody GuardianAlarmSettingRequest body) {
+        Long guardianId = SecurityUtil.currentUserId();
+        GuardianAlarmSetting setting = guardianAlarmSettingRepo.findById(guardianId).orElseGet(() -> {
+            GuardianAlarmSetting created = new GuardianAlarmSetting();
+            created.setGuardianId(guardianId);
+            return created;
+        });
+        if (body.hrAlert() != null) setting.setHrAlert(body.hrAlert());
+        if (body.bpAlert() != null) setting.setBpAlert(body.bpAlert());
+        if (body.fallAlert() != null) setting.setFallAlert(body.fallAlert());
+        if (body.bedAlert() != null) setting.setBedAlert(body.bedAlert());
+        guardianAlarmSettingRepo.save(setting);
+        return guardianAlarmSettings();
+    }
+
+    @PostMapping("/feedback")
+    public ApiResponse<Map<String, Object>> submitFeedback(@Valid @RequestBody FeedbackRequest body) {
+        FeedbackSubmission feedback = new FeedbackSubmission();
+        feedback.setSubmitterId(SecurityUtil.currentUserId());
+        feedback.setSubmitterRole(SecurityUtil.currentRole());
+        feedback.setType(body.type().trim());
+        feedback.setContent(body.content().trim());
+        feedbackRepo.save(feedback);
+        return ApiResponse.ok(Map.of("success", true, "id", feedback.getId()));
+    }
+
+    @PostMapping("/guardian/emergency/call")
+    public ApiResponse<Map<String, Object>> emergencyCall(@RequestBody(required = false) EmergencyRequest body) {
+        ClientUser guardian = requireCurrentClientUser();
+        Long memberId = body != null ? body.memberId() : null;
+        Ward ward = memberId != null ? wardRepo.findById(memberId).orElse(null) : null;
+        if (ward == null) {
+            List<Ward> wards = wardRepo.findByDeviceGuardianId(guardian.getId());
+            ward = wards.isEmpty() ? null : wards.get(0);
+        }
+        Device device = ward != null ? ward.getDevice() : deviceRepo.findByGuardianId(guardian.getId()).stream().findFirst().orElse(null);
+        Alarm alarm = alarmService.createManualAlarm(
+                ward != null ? ward.getMemberId() : null,
+                device != null ? device.getDeviceId() : "SOS-" + guardian.getId(),
+                AlarmType.EMERGENCY,
+                AlarmLevel.EMERGENCY,
+                body != null && body.note() != null ? body.note() : "SOS"
+        );
+        return ApiResponse.ok(Map.of("alarmId", alarm.getId()));
+    }
+
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // DOCTOR DETAIL (mini-app facing)
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     @GetMapping("/doctor/{id}")
     public ApiResponse<Map<String, Object>> getDoctorDetail(@PathVariable Long id) {
         Doctor doctor = doctorRepo.findById(id)
@@ -1039,21 +1322,34 @@ public class MiniAppController {
         return ApiResponse.ok(info);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MEDICINE ORDER (mini-app facing)
-    // ══════════════════════════════════════════════════════════════════
-
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // MEDICINE ORDER (mini-app facing)
+    // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
     record MedicineOrderRequest(List<Map<String, Object>> medicines, String address, String notes) {}
 
     @PostMapping("/medicine/order")
     public ApiResponse<Map<String, Object>> createMedicineOrder(@RequestBody MedicineOrderRequest body) {
         ServiceOrder o = new ServiceOrder();
-        o.setDisplayType("送药上门");
+        o.setOrderType(ServiceOrderType.MEDICINE_DELIVERY);
+        o.setDisplayType("送药服务");
         StringBuilder req = new StringBuilder();
-        if (body.address() != null) req.append("配送地址：").append(body.address());
-        if (body.notes() != null && !body.notes().isBlank()) req.append(" 备注：").append(body.notes());
+        if (body.address() != null && !body.address().isBlank()) {
+            req.append("送药地址：").append(body.address().trim());
+        }
+        if (body.notes() != null && !body.notes().isBlank()) {
+            if (req.length() > 0) {
+                req.append(" ");
+            }
+            req.append("备注：").append(body.notes().trim());
+        }
         o.setRequirement(req.toString());
-        currentClientUser().ifPresent(cu -> o.setGuardianId(cu.getId()));
+        currentClientUser().ifPresent(cu -> {
+            o.setGuardianId(cu.getId());
+            Family family = primaryFamilyOfGuardian(cu.getId());
+            if (family != null) {
+                o.setFamilyId(family.getId());
+                o.setOrgId(family.getOrgId());
+            }
+        });
         o.setCreatedById(SecurityUtil.currentUserId());
         orderRepo.save(o);
         return ApiResponse.ok(Map.of("success", true, "orderId", o.getId()));

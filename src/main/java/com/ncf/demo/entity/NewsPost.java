@@ -24,6 +24,14 @@ public class NewsPost {
 
     private String visibility;
 
+    private String category;
+
+    private String targetScope;
+
+    private Long targetFamilyId;
+
+    private String targetFamilyName;
+
     private Long publisherId;
 
     private String publisherName;
@@ -46,6 +54,38 @@ public class NewsPost {
 
     public String getVisibility() { return visibility; }
     public void setVisibility(String visibility) { this.visibility = visibility; }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getTargetScope() {
+        return targetScope;
+    }
+
+    public void setTargetScope(String targetScope) {
+        this.targetScope = targetScope;
+    }
+
+    public Long getTargetFamilyId() {
+        return targetFamilyId;
+    }
+
+    public void setTargetFamilyId(Long targetFamilyId) {
+        this.targetFamilyId = targetFamilyId;
+    }
+
+    public String getTargetFamilyName() {
+        return targetFamilyName;
+    }
+
+    public void setTargetFamilyName(String targetFamilyName) {
+        this.targetFamilyName = targetFamilyName;
+    }
 
     public Long getPublisherId() { return publisherId; }
     public void setPublisherId(Long publisherId) { this.publisherId = publisherId; }

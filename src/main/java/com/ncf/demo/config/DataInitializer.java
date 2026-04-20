@@ -21,11 +21,18 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final DataSource dataSource;
     private final AppProperties appProperties;
+    private final MiniAppDemoDataSeeder miniAppDemoDataSeeder;
 
-    public DataInitializer(UserRepository userRepository, DataSource dataSource, AppProperties appProperties) {
+    public DataInitializer(
+            UserRepository userRepository,
+            DataSource dataSource,
+            AppProperties appProperties,
+            MiniAppDemoDataSeeder miniAppDemoDataSeeder
+    ) {
         this.userRepository = userRepository;
         this.dataSource = dataSource;
         this.appProperties = appProperties;
+        this.miniAppDemoDataSeeder = miniAppDemoDataSeeder;
     }
 
     @Override
@@ -56,15 +63,14 @@ public class DataInitializer implements CommandLineRunner {
         migrateAlarmRuleType(jdbcTemplate);
 
         try {
-            if (userRepository.count() == 0) {
-                maybeImportMockData();
-            }
             ensureDefaultAdminUser(jdbcTemplate);
+            miniAppDemoDataSeeder.seedIfNeeded();
         } catch (Exception e) {
             log.error("Failed during data initialization: {}", e.getMessage(), e);
         }
     }
 
+    @Deprecated
     private void maybeImportMockData() {
         if (!appProperties.isMockDataEnabled()) {
             log.info("Mock data import is disabled (app.mock-data-enabled=false).");

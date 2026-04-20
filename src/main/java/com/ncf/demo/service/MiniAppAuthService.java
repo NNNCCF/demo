@@ -275,7 +275,7 @@ public class MiniAppAuthService {
                 .map(o -> new InstitutionListItem(
                         o.getId(),
                         o.getName(),
-                        o.getRegion(),
+                        o.getAddress() != null ? o.getAddress() : o.getRegion(),
                         o.getType() != null ? o.getType().name() : null
                 ))
                 .collect(Collectors.toList());

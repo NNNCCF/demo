@@ -26,6 +26,13 @@ public class ClientUser {
     @Column(name = "org_id")
     private Long orgId;
 
+    private String department;
+
+    private String title;
+
+    @Column(name = "id_card")
+    private String idCard;
+
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -86,6 +93,30 @@ public class ClientUser {
 
     public void setOrgId(Long orgId) {
         this.orgId = orgId;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getIdCard() {
+        return idCard;
+    }
+
+    public void setIdCard(String idCard) {
+        this.idCard = idCard;
     }
 
     public Instant getCreatedAt() {

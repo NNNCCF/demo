@@ -19,7 +19,9 @@ public class Organization {
     private OrgType type;
 
     private String region;
+    private String address;
     private String contactPhone;
+    private String licenseNo;
 
     @Enumerated(EnumType.STRING)
     private UserStatus status;
@@ -40,8 +42,12 @@ public class Organization {
     public void setType(OrgType type) { this.type = type; }
     public String getRegion() { return region; }
     public void setRegion(String region) { this.region = region; }
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
     public String getContactPhone() { return contactPhone; }
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
+    public String getLicenseNo() { return licenseNo; }
+    public void setLicenseNo(String licenseNo) { this.licenseNo = licenseNo; }
     public UserStatus getStatus() { return status; }
     public void setStatus(UserStatus status) { this.status = status; }
     public Instant getCreatedAt() { return createdAt; }
