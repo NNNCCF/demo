@@ -18,4 +18,6 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, Long
     List<ServiceOrder> findByStatusOrderByCreatedAtDesc(ServiceOrderStatus status);
 
     List<ServiceOrder> findByOrgIdOrderByCreatedAtDesc(Long orgId);
+
+    List<ServiceOrder> findByOrgIdAndNurseIdIsNullOrderByCreatedAtDesc(Long orgId);
 }

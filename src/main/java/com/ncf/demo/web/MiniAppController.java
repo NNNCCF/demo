@@ -474,7 +474,17 @@ public class MiniAppController {
                     .collect(Collectors.toList());
         } else if ("CAREGIVER".equals(role) || "NURSE".equals(role) || "DOCTOR".equals(role)) {
             // 閸栫粯濮㈢粩顖ょ窗閸欘亞婀呴崚鍡涘帳缂佹瑨鍤滃杈╂畱妫板嫮瀹抽敍鍫滅瑝閸?pending 瀵板懎顦╅悶鍡礆
-            orders = orderRepo.findByNurseIdOrderByCreatedAtDesc(uid);
+            // 已派给自己的订单 + 同机构未派单的待接单订单
+            Long staffOrgId = SecurityUtil.currentOrgId();
+            List<ServiceOrder> myOrders = orderRepo.findByNurseIdOrderByCreatedAtDesc(uid);
+            List<ServiceOrder> unassigned = staffOrgId != null
+                    ? orderRepo.findByOrgIdAndNurseIdIsNullOrderByCreatedAtDesc(staffOrgId)
+                    : List.of();
+            Set<Long> seen = new HashSet<>();
+            orders = new ArrayList<>();
+            for (ServiceOrder so : myOrders) { if (seen.add(so.getId())) orders.add(so); }
+            for (ServiceOrder so : unassigned) { if (seen.add(so.getId())) orders.add(so); }
+            orders.sort(Comparator.comparing(ServiceOrder::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
         } else if ("INSTITUTION".equals(role)) {
             Long orgId = SecurityUtil.currentOrgId();
             orders = orgId != null
