@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
 
@@ -20,6 +21,7 @@ import java.util.UUID;
 public class AuthCaptchaService {
     private static final String LOGIN_SCENE = "LOGIN";
     private static final String REGISTER_SCENE = "REGISTER";
+    private static final String DATA_URL_BASE64_MARKER = ";base64,";
 
     private final AppProperties appProperties;
     private final RestClient restClient;
@@ -55,15 +57,15 @@ public class AuthCaptchaService {
         }
 
         AppProperties.Captcha captcha = appProperties.getCaptcha();
-        CaptchaCreateResponse response = restClient.get()
-                .uri(captcha.getBaseUrl() + "?width=" + captcha.getWidth()
+        CaptchaCreateResponse response = authorizedGet(captcha.getBaseUrl() + "?width=" + captcha.getWidth()
                         + "&height=" + captcha.getHeight()
                         + "&length=" + captcha.getLength()
                         + "&type=" + captcha.getType())
                 .retrieve()
                 .body(CaptchaCreateResponse.class);
 
-        if (response == null || response.data() == null || response.data().id() == null || response.data().url() == null) {
+        if (response == null || response.code() != 200 || response.data() == null
+                || response.data().id() == null || response.data().url() == null) {
             throw new BizException(5001, "Captcha provider is unavailable");
         }
 
@@ -86,14 +88,19 @@ public class AuthCaptchaService {
     public byte[] fetchCaptchaImage(String captchaToken, String clientKey) {
         CaptchaSession session = loadSession(captchaToken);
         ensureSessionOwnership(session, clientKey);
-        byte[] imageBytes = restClient.get()
+        byte[] imageBytes = decodeCaptchaImage(session.imageUrl());
+        if (imageBytes != null) {
+            return imageBytes;
+        }
+
+        byte[] remoteImageBytes = restClient.get()
                 .uri(session.imageUrl())
                 .retrieve()
                 .body(byte[].class);
-        if (imageBytes == null || imageBytes.length == 0) {
+        if (remoteImageBytes == null || remoteImageBytes.length == 0) {
             throw new BizException(5004, "Failed to load captcha image");
         }
-        return imageBytes;
+        return remoteImageBytes;
     }
 
     public void verifyCaptcha(String scene, String clientKey, String captchaToken, String captchaCode) {
@@ -110,18 +117,43 @@ public class AuthCaptchaService {
         }
 
         AppProperties.Captcha captcha = appProperties.getCaptcha();
-        CaptchaVerifyResponse response = restClient.get()
-                .uri(captcha.getBaseUrl() + "?id=" + session.thirdPartyId()
+        CaptchaVerifyResponse response = authorizedGet(captcha.getBaseUrl() + "?id=" + session.thirdPartyId()
                         + "&key=" + captchaCode
                         + "&type=" + captcha.getType())
                 .retrieve()
                 .body(CaptchaVerifyResponse.class);
 
         stringRedisTemplate.delete(sessionKey(captchaToken));
-        if (response == null || (response.code() != 1 && response.code() != 200)) {
+        if (response == null || response.code() != 200) {
             startCooldown(normalizedScene, clientKey);
             throw new BizException(4291, "Captcha is invalid, retry in " + captcha.getCooldownSeconds() + " seconds");
         }
+    }
+
+    static byte[] decodeCaptchaImage(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank() || !imageUrl.startsWith("data:image/")) {
+            return null;
+        }
+        int markerIndex = imageUrl.indexOf(DATA_URL_BASE64_MARKER);
+        if (markerIndex < 0) {
+            throw new BizException(5004, "Failed to load captcha image");
+        }
+        String payload = imageUrl.substring(markerIndex + DATA_URL_BASE64_MARKER.length());
+        try {
+            return Base64.getDecoder().decode(payload);
+        } catch (IllegalArgumentException ex) {
+            throw new BizException(5004, "Failed to load captcha image");
+        }
+    }
+
+    private RestClient.RequestHeadersSpec<?> authorizedGet(String uri) {
+        AppProperties.Captcha captcha = appProperties.getCaptcha();
+        if (captcha.getApiKey() == null || captcha.getApiKey().isBlank()) {
+            throw new BizException(5005, "Captcha API key is not configured");
+        }
+        return restClient.get()
+                .uri(uri)
+                .header("Authorization", "Bearer " + captcha.getApiKey());
     }
 
     private void startCooldown(String scene, String clientKey) {

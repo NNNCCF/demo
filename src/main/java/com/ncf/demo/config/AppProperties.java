@@ -242,6 +242,7 @@ public class AppProperties {
 
     public static class Captcha {
         private String baseUrl = "https://v2.xxapi.cn/api/captcha";
+        private String apiKey;
         private int width = 150;
         private int height = 50;
         private int length = 4;
@@ -255,6 +256,14 @@ public class AppProperties {
 
         public void setBaseUrl(String baseUrl) {
             this.baseUrl = baseUrl;
+        }
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
         }
 
         public int getWidth() {
