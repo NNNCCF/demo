@@ -7,6 +7,7 @@ public record LoginResponse(
         Long orgId,
         String orgType,
         String token,
-        Long expireSeconds
+        Long expireSeconds,
+        boolean forcePasswordChange
 ) {
 }

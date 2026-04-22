@@ -9,6 +9,7 @@ public class AppProperties {
     private final Tdengine tdengine = new Tdengine();
     private final Miniapp miniapp = new Miniapp();
     private final Exposure exposure = new Exposure();
+    private final Captcha captcha = new Captcha();
 
     private boolean mockDataEnabled = false;
     private String adminPasswordHash;
@@ -31,6 +32,10 @@ public class AppProperties {
 
     public Exposure getExposure() {
         return exposure;
+    }
+
+    public Captcha getCaptcha() {
+        return captcha;
     }
 
     public boolean isMockDataEnabled() {
@@ -232,6 +237,72 @@ public class AppProperties {
 
         public void setActuatorPublic(boolean actuatorPublic) {
             this.actuatorPublic = actuatorPublic;
+        }
+    }
+
+    public static class Captcha {
+        private String baseUrl = "https://v2.xxapi.cn/api/captcha";
+        private int width = 150;
+        private int height = 50;
+        private int length = 4;
+        private String type = "string";
+        private long sessionTtlSeconds = 300;
+        private long cooldownSeconds = 60;
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public int getWidth() {
+            return width;
+        }
+
+        public void setWidth(int width) {
+            this.width = width;
+        }
+
+        public int getHeight() {
+            return height;
+        }
+
+        public void setHeight(int height) {
+            this.height = height;
+        }
+
+        public int getLength() {
+            return length;
+        }
+
+        public void setLength(int length) {
+            this.length = length;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public long getSessionTtlSeconds() {
+            return sessionTtlSeconds;
+        }
+
+        public void setSessionTtlSeconds(long sessionTtlSeconds) {
+            this.sessionTtlSeconds = sessionTtlSeconds;
+        }
+
+        public long getCooldownSeconds() {
+            return cooldownSeconds;
+        }
+
+        public void setCooldownSeconds(long cooldownSeconds) {
+            this.cooldownSeconds = cooldownSeconds;
         }
     }
 }

@@ -474,16 +474,16 @@ public class MiniAppController {
             Optional<ClientUser> cu = currentClientUser();
             if (cu.isEmpty()) return ApiResponse.ok(List.of());
             Long guardianClientId = cu.get().getId();
-            orders = orderRepo.findAllByOrderByCreatedAtDesc().stream()
+            orders = orderRepo.findAllByDeletedFalseOrderByCreatedAtDesc().stream()
                     .filter(o -> guardianClientId.equals(o.getGuardianId()))
                     .collect(Collectors.toList());
         } else if ("CAREGIVER".equals(role) || "NURSE".equals(role) || "DOCTOR".equals(role)) {
             // 閸栫粯濮㈢粩顖ょ窗閸欘亞婀呴崚鍡涘帳缂佹瑨鍤滃杈╂畱妫板嫮瀹抽敍鍫滅瑝閸?pending 瀵板懎顦╅悶鍡礆
             // 已派给自己的订单 + 同机构未派单的待接单订单
             Long staffOrgId = SecurityUtil.currentOrgId();
-            List<ServiceOrder> myOrders = orderRepo.findByNurseIdOrderByCreatedAtDesc(uid);
+            List<ServiceOrder> myOrders = orderRepo.findByNurseIdAndDeletedFalseOrderByCreatedAtDesc(uid);
             List<ServiceOrder> unassigned = staffOrgId != null
-                    ? orderRepo.findByOrgIdAndNurseIdIsNullOrderByCreatedAtDesc(staffOrgId)
+                    ? orderRepo.findByOrgIdAndNurseIdIsNullAndDeletedFalseOrderByCreatedAtDesc(staffOrgId)
                     : List.of();
             Set<Long> seen = new HashSet<>();
             orders = new ArrayList<>();
@@ -493,10 +493,10 @@ public class MiniAppController {
         } else if ("INSTITUTION".equals(role)) {
             Long orgId = SecurityUtil.currentOrgId();
             orders = orgId != null
-                    ? orderRepo.findByOrgIdOrderByCreatedAtDesc(orgId)
+                    ? orderRepo.findByOrgIdAndDeletedFalseOrderByCreatedAtDesc(orgId)
                     : List.of();
         } else {
-            orders = orderRepo.findAllByOrderByCreatedAtDesc();
+            orders = orderRepo.findAllByDeletedFalseOrderByCreatedAtDesc();
         }
 
         if (!"all".equals(status)) {
@@ -597,14 +597,14 @@ public class MiniAppController {
 
     @GetMapping("/appointments/{id}")
     public ApiResponse<ApptVo> getAppointment(@PathVariable Long id) {
-        ServiceOrder o = orderRepo.findById(id)
+        ServiceOrder o = orderRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
         return ApiResponse.ok(toApptVo(o));
     }
 
     @PutMapping("/appointments/{id}/accept")
     public ApiResponse<Void> acceptAppointment(@PathVariable Long id) {
-        ServiceOrder o = orderRepo.findById(id)
+        ServiceOrder o = orderRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
         Long uid = SecurityUtil.currentUserId();
         String nurseName = resolveUserDisplayName(uid);
@@ -621,7 +621,7 @@ public class MiniAppController {
     @PutMapping("/appointments/{id}/dispatch")
     public ApiResponse<Void> dispatchAppointment(@PathVariable Long id,
                                                   @RequestBody DispatchRequest body) {
-        ServiceOrder o = orderRepo.findById(id)
+        ServiceOrder o = orderRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
         ClientUser nurse = body.nurseId() != null ? clientUserRepo.findById(body.nurseId()).orElse(null) : null;
         Long orgId = SecurityUtil.currentOrgId();
@@ -640,7 +640,7 @@ public class MiniAppController {
     @PostMapping("/appointments/{id}/visit-record")
     public ApiResponse<Void> submitVisitRecord(@PathVariable Long id,
                                                 @RequestBody VisitRecordRequest body) {
-        ServiceOrder o = orderRepo.findById(id)
+        ServiceOrder o = orderRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
         if (body.visitTime() != null) {
             try {
@@ -1155,11 +1155,11 @@ public class MiniAppController {
         Long uid = SecurityUtil.currentUserId();
         if ("INSTITUTION".equals(role)) {
             Long orgId = SecurityUtil.currentOrgId();
-            orders = orgId != null ? orderRepo.findByOrgIdOrderByCreatedAtDesc(orgId) : List.of();
+            orders = orgId != null ? orderRepo.findByOrgIdAndDeletedFalseOrderByCreatedAtDesc(orgId) : List.of();
         } else if ("CAREGIVER".equals(role)) {
-            orders = uid != null ? orderRepo.findByNurseIdOrderByCreatedAtDesc(uid) : List.of();
+            orders = uid != null ? orderRepo.findByNurseIdAndDeletedFalseOrderByCreatedAtDesc(uid) : List.of();
         } else {
-            orders = orderRepo.findAllByOrderByCreatedAtDesc().stream()
+            orders = orderRepo.findAllByDeletedFalseOrderByCreatedAtDesc().stream()
                     .filter(o -> o.getFamilyId() != null && familyIds.contains(o.getFamilyId()))
                     .collect(Collectors.toList());
         }

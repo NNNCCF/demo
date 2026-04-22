@@ -1,5 +1,6 @@
 package com.ncf.demo.security;
 
+import com.ncf.demo.common.BizException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -11,6 +12,14 @@ public class SecurityUtil {
         Object principal = auth.getPrincipal();
         if (principal instanceof Number n) return n.longValue();
         return null;
+    }
+
+    public static Long requireCurrentUserId() {
+        Long userId = currentUserId();
+        if (userId == null) {
+            throw new BizException(401, "Please login first");
+        }
+        return userId;
     }
 
     public static Long currentOrgId() {

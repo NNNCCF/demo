@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -27,14 +28,35 @@ public class FeedbackSubmission {
     private String status;
     private Instant createdAt;
 
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
+    @Column(nullable = false)
+    private boolean deleted;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @Column(name = "deleted_by")
+    private Long deletedBy;
+
     @PrePersist
     protected void onCreate() {
+        Instant now = Instant.now();
         if (status == null) {
             status = "NEW";
         }
         if (createdAt == null) {
-            createdAt = Instant.now();
+            createdAt = now;
         }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
     }
 
     public Long getId() {
@@ -91,5 +113,37 @@ public class FeedbackSubmission {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public boolean isDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(boolean deleted) {
+        this.deleted = deleted;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    public Long getDeletedBy() {
+        return deletedBy;
+    }
+
+    public void setDeletedBy(Long deletedBy) {
+        this.deletedBy = deletedBy;
     }
 }

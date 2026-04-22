@@ -1,7 +1,8 @@
 package com.ncf.demo.web;
 
+import com.ncf.demo.common.BizException;
 import com.ncf.demo.service.AuthService;
-import com.ncf.demo.web.dto.RegisterRequest;
+import com.ncf.demo.web.dto.AdminCreateUserRequest;
 import com.ncf.demo.web.dto.UserResponse;
 import com.ncf.demo.web.dto.UserStatusUpdateRequest;
 import jakarta.validation.Valid;
@@ -34,8 +35,8 @@ public class AdminUserController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<UserResponse> create(@RequestBody @Valid RegisterRequest request) {
-        return ApiResponse.ok(authService.register(request));
+    public ApiResponse<UserResponse> create(@RequestBody @Valid AdminCreateUserRequest request) {
+        return ApiResponse.ok(authService.createUser(request));
     }
 
     @PatchMapping("/{userId}/status")
@@ -48,7 +49,7 @@ public class AdminUserController {
     public ApiResponse<Void> resetPassword(@PathVariable Long userId, @RequestBody Map<String, String> body) {
         String newPassword = body.get("newPassword");
         if (newPassword == null || newPassword.length() < 6) {
-            throw new com.ncf.demo.common.BizException(400, "新密码不能少于6位");
+            throw new BizException(400, "New password must contain at least 6 characters");
         }
         authService.resetPassword(userId, newPassword);
         return ApiResponse.ok(null);

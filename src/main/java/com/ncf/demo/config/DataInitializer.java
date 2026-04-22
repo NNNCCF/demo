@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StreamUtils;
 
 import javax.sql.DataSource;
@@ -22,17 +23,20 @@ public class DataInitializer implements CommandLineRunner {
     private final DataSource dataSource;
     private final AppProperties appProperties;
     private final MiniAppDemoDataSeeder miniAppDemoDataSeeder;
+    private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(
             UserRepository userRepository,
             DataSource dataSource,
             AppProperties appProperties,
-            MiniAppDemoDataSeeder miniAppDemoDataSeeder
+            MiniAppDemoDataSeeder miniAppDemoDataSeeder,
+            PasswordEncoder passwordEncoder
     ) {
         this.userRepository = userRepository;
         this.dataSource = dataSource;
         this.appProperties = appProperties;
         this.miniAppDemoDataSeeder = miniAppDemoDataSeeder;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -61,6 +65,8 @@ public class DataInitializer implements CommandLineRunner {
 
         ensureGuardianForeignKey(jdbcTemplate);
         migrateAlarmRuleType(jdbcTemplate);
+        ensureUserSecurityColumns(jdbcTemplate);
+        ensureBusinessAuditColumns(jdbcTemplate);
 
         try {
             ensureDefaultAdminUser(jdbcTemplate);
@@ -106,21 +112,59 @@ public class DataInitializer implements CommandLineRunner {
 
     private void ensureDefaultAdminUser(JdbcTemplate jdbcTemplate) {
         if (userRepository.existsById(1000L) || userRepository.existsByUsername("admin")) {
+            jdbcTemplate.update(
+                    "UPDATE sys_user SET force_password_change = ? WHERE id = ? OR username = ?",
+                    true, 1000L, "admin"
+            );
             return;
         }
 
         log.info("Admin user not found. Creating default admin user...");
-        String passwordHash = appProperties.getAdminPasswordHash();
-        if (passwordHash == null || passwordHash.isBlank()) {
-            log.error("app.admin-password-hash is not configured, skip creating admin user.");
-            return;
-        }
+        String passwordHash = passwordEncoder.encode("200502");
 
         jdbcTemplate.update(
-                "INSERT INTO sys_user (id, username, password_hash, role, region, phone, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
-                1000L, "admin", passwordHash, "ADMIN", "HQ", "13800138000", "ENABLED"
+                "INSERT INTO sys_user (id, username, password_hash, role, region, phone, status, force_password_change, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                1000L, "admin", passwordHash, "ADMIN", "HQ", "13800138000", "ENABLED", true
         );
         log.info("Default admin user created.");
+    }
+
+    private void ensureUserSecurityColumns(JdbcTemplate jdbcTemplate) {
+        try {
+            jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN force_password_change BIT NOT NULL DEFAULT b'0'");
+            log.info("Added sys_user.force_password_change");
+        } catch (Exception e) {
+            log.warn("Could not add sys_user.force_password_change: {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN password_changed_at DATETIME NULL");
+            log.info("Added sys_user.password_changed_at");
+        } catch (Exception e) {
+            log.warn("Could not add sys_user.password_changed_at: {}", e.getMessage());
+        }
+    }
+
+    private void ensureBusinessAuditColumns(JdbcTemplate jdbcTemplate) {
+        addColumnIfMissing(jdbcTemplate, "service_order", "updated_at", "TIMESTAMP NULL");
+        addColumnIfMissing(jdbcTemplate, "service_order", "deleted", "BOOLEAN NOT NULL DEFAULT FALSE");
+        addColumnIfMissing(jdbcTemplate, "service_order", "deleted_at", "TIMESTAMP NULL");
+        addColumnIfMissing(jdbcTemplate, "service_order", "deleted_by", "BIGINT NULL");
+
+        addColumnIfMissing(jdbcTemplate, "feedback_submission", "updated_at", "TIMESTAMP NULL");
+        addColumnIfMissing(jdbcTemplate, "feedback_submission", "deleted", "BOOLEAN NOT NULL DEFAULT FALSE");
+        addColumnIfMissing(jdbcTemplate, "feedback_submission", "deleted_at", "TIMESTAMP NULL");
+        addColumnIfMissing(jdbcTemplate, "feedback_submission", "deleted_by", "BIGINT NULL");
+
+        addColumnIfMissing(jdbcTemplate, "news_post", "updated_at", "TIMESTAMP NULL");
+    }
+
+    private void addColumnIfMissing(JdbcTemplate jdbcTemplate, String tableName, String columnName, String columnDefinition) {
+        try {
+            jdbcTemplate.execute("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDefinition);
+            log.info("Added {}.{}", tableName, columnName);
+        } catch (Exception e) {
+            log.warn("Could not add {}.{}: {}", tableName, columnName, e.getMessage());
+        }
     }
 
     private void migrateAlarmRuleType(JdbcTemplate jdbcTemplate) {

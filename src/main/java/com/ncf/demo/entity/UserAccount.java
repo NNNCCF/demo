@@ -31,6 +31,10 @@ public class UserAccount {
     private String phone;
     @Enumerated(EnumType.STRING)
     private UserStatus status;
+    @Column(name = "force_password_change", nullable = false)
+    private boolean forcePasswordChange;
+    @Column(name = "password_changed_at")
+    private Instant passwordChangedAt;
     private Instant createdAt;
     private Instant updatedAt;
     
@@ -96,6 +100,22 @@ public class UserAccount {
 
     public void setStatus(UserStatus status) {
         this.status = status;
+    }
+
+    public boolean isForcePasswordChange() {
+        return forcePasswordChange;
+    }
+
+    public void setForcePasswordChange(boolean forcePasswordChange) {
+        this.forcePasswordChange = forcePasswordChange;
+    }
+
+    public Instant getPasswordChangedAt() {
+        return passwordChangedAt;
+    }
+
+    public void setPasswordChangedAt(Instant passwordChangedAt) {
+        this.passwordChangedAt = passwordChangedAt;
     }
 
     public Instant getCreatedAt() {

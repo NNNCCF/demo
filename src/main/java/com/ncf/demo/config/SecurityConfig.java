@@ -1,5 +1,6 @@
 package com.ncf.demo.config;
 
+import com.ncf.demo.security.ForcePasswordChangeFilter;
 import com.ncf.demo.security.JwtAuthFilter;
 import com.ncf.demo.security.MiniAppSignatureFilter;
 import com.ncf.demo.security.RateLimitFilter;
@@ -25,6 +26,7 @@ public class SecurityConfig {
             HttpSecurity http,
             JwtAuthFilter jwtAuthFilter,
             RateLimitFilter rateLimitFilter,
+            ForcePasswordChangeFilter forcePasswordChangeFilter,
             MiniAppSignatureFilter miniAppSignatureFilter,
             AppProperties appProperties
     ) throws Exception {
@@ -61,6 +63,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(publicEndpoints.toArray(String[]::new)).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/service-orders/**", "/api/news/**").hasAnyRole("ADMIN", "GUARDIAN")
+                        .requestMatchers("/api/service-orders/**", "/api/news/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/organizations").authenticated()
                         .requestMatchers("/api/mini/**").hasAnyRole("ADMIN", "NURSE", "DOCTOR", "GUARDIAN", "INSTITUTION", "CAREGIVER")
                         .requestMatchers("/api/families/**", "/api/devices/**", "/api/alarms/**", "/api/data/**",
@@ -69,7 +73,8 @@ public class SecurityConfig {
                 )
                 .addFilterBefore(miniAppSignatureFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(rateLimitFilter, MiniAppSignatureFilter.class)
-                .addFilterAfter(jwtAuthFilter, RateLimitFilter.class);
+                .addFilterAfter(jwtAuthFilter, RateLimitFilter.class)
+                .addFilterAfter(forcePasswordChangeFilter, JwtAuthFilter.class);
         return http.build();
     }
 
