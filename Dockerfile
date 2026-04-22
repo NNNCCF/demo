@@ -1,5 +1,6 @@
 # -------- Stage 1: Build --------
 ARG BACKEND_BUILD_IMAGE=eclipse-temurin:17-jdk-jammy
+ARG BACKEND_RUNTIME_IMAGE=eclipse-temurin:17-jre-jammy
 FROM ${BACKEND_BUILD_IMAGE} AS build
 WORKDIR /workspace
 
@@ -14,7 +15,6 @@ RUN ./gradlew --no-daemon --info clean bootJar -x test \
     && cp build/libs/*.jar app.jar
 
 # -------- Stage 2: Runtime --------
-ARG BACKEND_RUNTIME_IMAGE=eclipse-temurin:17-jre-jammy
 FROM ${BACKEND_RUNTIME_IMAGE}
 WORKDIR /app
 
