@@ -6,6 +6,8 @@ import com.ncf.demo.domain.DeviceType;
 public record DeviceRegisterResponse(
         String deviceId,
         DeviceType deviceType,
-        DeviceStatus status
+        DeviceStatus status,
+        String mqttUsername,
+        String mqttPassword
 ) {
 }

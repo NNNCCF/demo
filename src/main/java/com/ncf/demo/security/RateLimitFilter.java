@@ -57,7 +57,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private boolean isHighFrequencyPath(String path) {
-        return path.contains("/api/login") || path.contains("/api/devices") || path.contains("/api/data");
+        return path.contains("/api/login")
+                || path.contains("/api/register")
+                || path.contains("/api/auth/")
+                || path.contains("/api/devices")
+                || path.contains("/api/data")
+                || path.contains("/api/emqx/auth");
     }
 
     private String currentMinute() {

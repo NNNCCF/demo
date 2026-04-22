@@ -2,6 +2,7 @@ package com.ncf.demo.entity;
 
 import com.ncf.demo.domain.DeviceStatus;
 import com.ncf.demo.domain.DeviceType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -54,6 +55,10 @@ public class Device {
     private Instant lastOfflineAt;
     private Double latitude;
     private Double longitude;
+    @JsonIgnore
+    private String mqttUsername;
+    @JsonIgnore
+    private String mqttPasswordHash;
 
     @jakarta.persistence.Transient
     private Boolean isFall;
@@ -222,5 +227,21 @@ public class Device {
 
     public void setLongitude(Double longitude) {
         this.longitude = longitude;
+    }
+
+    public String getMqttUsername() {
+        return mqttUsername;
+    }
+
+    public void setMqttUsername(String mqttUsername) {
+        this.mqttUsername = mqttUsername;
+    }
+
+    public String getMqttPasswordHash() {
+        return mqttPasswordHash;
+    }
+
+    public void setMqttPasswordHash(String mqttPasswordHash) {
+        this.mqttPasswordHash = mqttPasswordHash;
     }
 }

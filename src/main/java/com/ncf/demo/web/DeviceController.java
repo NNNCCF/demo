@@ -41,6 +41,11 @@ public class DeviceController {
         return ApiResponse.ok(deviceService.register(request));
     }
 
+    @PostMapping("/{deviceId}/mqtt-credentials")
+    public ApiResponse<DeviceRegisterResponse> rotateMqttCredentials(@PathVariable String deviceId) {
+        return ApiResponse.ok(deviceService.rotateMqttCredentials(deviceId));
+    }
+
     @PutMapping("/{deviceId}")
     public ApiResponse<Void> update(@PathVariable String deviceId, @RequestBody @Valid DeviceUpdateRequest request) {
         deviceService.update(deviceId, request);

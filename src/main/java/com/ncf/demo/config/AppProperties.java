@@ -7,6 +7,8 @@ public class AppProperties {
     private final Jwt jwt = new Jwt();
     private final Emqx emqx = new Emqx();
     private final Tdengine tdengine = new Tdengine();
+    private final Miniapp miniapp = new Miniapp();
+    private final Exposure exposure = new Exposure();
 
     private boolean mockDataEnabled = false;
     private String adminPasswordHash;
@@ -21,6 +23,14 @@ public class AppProperties {
 
     public Tdengine getTdengine() {
         return tdengine;
+    }
+
+    public Miniapp getMiniapp() {
+        return miniapp;
+    }
+
+    public Exposure getExposure() {
+        return exposure;
     }
 
     public boolean isMockDataEnabled() {
@@ -153,6 +163,75 @@ public class AppProperties {
 
         public void setPassword(String password) {
             this.password = password;
+        }
+    }
+
+    public static class Miniapp {
+        private boolean signatureEnabled = true;
+        private String clientId = "zkab-miniapp";
+        private String sharedSecret = "change-me-miniapp-shared-secret";
+        private long allowedClockSkewSeconds = 300;
+        private long nonceTtlSeconds = 300;
+
+        public boolean isSignatureEnabled() {
+            return signatureEnabled;
+        }
+
+        public void setSignatureEnabled(boolean signatureEnabled) {
+            this.signatureEnabled = signatureEnabled;
+        }
+
+        public String getClientId() {
+            return clientId;
+        }
+
+        public void setClientId(String clientId) {
+            this.clientId = clientId;
+        }
+
+        public String getSharedSecret() {
+            return sharedSecret;
+        }
+
+        public void setSharedSecret(String sharedSecret) {
+            this.sharedSecret = sharedSecret;
+        }
+
+        public long getAllowedClockSkewSeconds() {
+            return allowedClockSkewSeconds;
+        }
+
+        public void setAllowedClockSkewSeconds(long allowedClockSkewSeconds) {
+            this.allowedClockSkewSeconds = allowedClockSkewSeconds;
+        }
+
+        public long getNonceTtlSeconds() {
+            return nonceTtlSeconds;
+        }
+
+        public void setNonceTtlSeconds(long nonceTtlSeconds) {
+            this.nonceTtlSeconds = nonceTtlSeconds;
+        }
+    }
+
+    public static class Exposure {
+        private boolean swaggerPublic = false;
+        private boolean actuatorPublic = false;
+
+        public boolean isSwaggerPublic() {
+            return swaggerPublic;
+        }
+
+        public void setSwaggerPublic(boolean swaggerPublic) {
+            this.swaggerPublic = swaggerPublic;
+        }
+
+        public boolean isActuatorPublic() {
+            return actuatorPublic;
+        }
+
+        public void setActuatorPublic(boolean actuatorPublic) {
+            this.actuatorPublic = actuatorPublic;
         }
     }
 }

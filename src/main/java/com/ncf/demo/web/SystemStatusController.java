@@ -1,5 +1,6 @@
 package com.ncf.demo.web;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.actuate.health.CompositeHealth;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.actuate.metrics.MetricsEndpoint;
@@ -19,16 +20,18 @@ public class SystemStatusController {
     private final HealthEndpoint healthEndpoint;
     private final MetricsEndpoint metricsEndpoint;
 
-    public SystemStatusController(HealthEndpoint healthEndpoint, MetricsEndpoint metricsEndpoint) {
+    public SystemStatusController(
+            HealthEndpoint healthEndpoint,
+            ObjectProvider<MetricsEndpoint> metricsEndpointProvider
+    ) {
         this.healthEndpoint = healthEndpoint;
-        this.metricsEndpoint = metricsEndpoint;
+        this.metricsEndpoint = metricsEndpointProvider.getIfAvailable();
     }
 
     @GetMapping
     public ApiResponse<Map<String, Object>> status() {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        // --- 各服务健康状态 ---
         Map<String, Object> services = new LinkedHashMap<>();
         var health = healthEndpoint.health();
         if (health instanceof CompositeHealth composite && composite.getComponents() != null) {
@@ -40,56 +43,58 @@ public class SystemStatusController {
         }
         result.put("services", services);
 
-        // --- JVM 内存 ---
         long heapUsed = longMetric("jvm.memory.used", List.of("area:heap"));
-        long heapMax  = longMetric("jvm.memory.max",  List.of("area:heap"));
+        long heapMax = longMetric("jvm.memory.max", List.of("area:heap"));
         long heapUsedMB = heapUsed / (1024 * 1024);
-        long heapMaxMB  = heapMax  / (1024 * 1024);
-        double heapPct  = heapMax > 0 ? (heapUsed * 100.0 / heapMax) : 0;
+        long heapMaxMB = heapMax / (1024 * 1024);
+        double heapPct = heapMax > 0 ? (heapUsed * 100.0 / heapMax) : 0;
         long liveThreads = longMetric("jvm.threads.live", List.of());
 
         Map<String, Object> jvm = new LinkedHashMap<>();
-        jvm.put("heapUsedMB",  heapUsedMB);
-        jvm.put("heapMaxMB",   heapMaxMB);
+        jvm.put("heapUsedMB", heapUsedMB);
+        jvm.put("heapMaxMB", heapMaxMB);
         jvm.put("heapUsedPct", Math.round(heapPct * 10.0) / 10.0);
         jvm.put("liveThreads", liveThreads);
         result.put("jvm", jvm);
 
-        // --- 系统资源 ---
-        double cpuUsage   = doubleMetric("system.cpu.usage", List.of());
-        long diskFree  = longMetric("disk.free",  List.of());
+        double cpuUsage = doubleMetric("system.cpu.usage", List.of());
+        long diskFree = longMetric("disk.free", List.of());
         long diskTotal = longMetric("disk.total", List.of());
-        long diskFreeMB  = diskFree  / (1024 * 1024);
+        long diskFreeMB = diskFree / (1024 * 1024);
         long diskTotalMB = diskTotal / (1024 * 1024);
         double diskUsedPct = diskTotal > 0 ? ((diskTotal - diskFree) * 100.0 / diskTotal) : 0;
 
         Map<String, Object> system = new LinkedHashMap<>();
-        system.put("cpuUsagePct",  Math.round(cpuUsage * 1000.0) / 10.0);
-        system.put("diskFreeMB",   diskFreeMB);
-        system.put("diskTotalMB",  diskTotalMB);
-        system.put("diskUsedPct",  Math.round(diskUsedPct * 10.0) / 10.0);
+        system.put("cpuUsagePct", Math.round(cpuUsage * 1000.0) / 10.0);
+        system.put("diskFreeMB", diskFreeMB);
+        system.put("diskTotalMB", diskTotalMB);
+        system.put("diskUsedPct", Math.round(diskUsedPct * 10.0) / 10.0);
         result.put("system", system);
 
-        // --- 运行时信息 ---
         double uptimeSeconds = doubleMetric("process.uptime", List.of());
-        double startEpoch    = doubleMetric("process.start.time", List.of());
+        double startEpoch = doubleMetric("process.start.time", List.of());
 
         Map<String, Object> runtime = new LinkedHashMap<>();
         runtime.put("uptimeSeconds", (long) uptimeSeconds);
-        runtime.put("startTime",     startEpoch > 0 ? Instant.ofEpochMilli((long)(startEpoch * 1000)).toString() : null);
-        runtime.put("javaVersion",   System.getProperty("java.version"));
+        runtime.put("startTime", startEpoch > 0 ? Instant.ofEpochMilli((long) (startEpoch * 1000)).toString() : null);
+        runtime.put("javaVersion", System.getProperty("java.version"));
         result.put("runtime", runtime);
 
         return ApiResponse.ok(result);
     }
 
     private double doubleMetric(String name, List<String> tags) {
+        if (metricsEndpoint == null) {
+            return 0;
+        }
         try {
             var metric = metricsEndpoint.metric(name, tags);
-            if (metric == null) return 0;
+            if (metric == null) {
+                return 0;
+            }
             return metric.getMeasurements().stream()
                     .findFirst()
-                    .map(m -> m.getValue())
+                    .map(measurement -> measurement.getValue())
                     .orElse(0.0);
         } catch (Exception e) {
             return 0;
