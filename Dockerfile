@@ -1,5 +1,6 @@
 # -------- Stage 1: Build --------
-FROM eclipse-temurin:17-jdk-jammy AS build
+ARG BACKEND_BUILD_IMAGE=eclipse-temurin:17-jdk-jammy
+FROM ${BACKEND_BUILD_IMAGE} AS build
 WORKDIR /workspace
 
 # 先复制构建脚本与 wrapper，利用 Docker 层缓存
@@ -13,7 +14,8 @@ RUN ./gradlew --no-daemon --info clean bootJar -x test \
     && cp build/libs/*.jar app.jar
 
 # -------- Stage 2: Runtime --------
-FROM eclipse-temurin:17-jre-jammy
+ARG BACKEND_RUNTIME_IMAGE=eclipse-temurin:17-jre-jammy
+FROM ${BACKEND_RUNTIME_IMAGE}
 WORKDIR /app
 
 # 非 root 用户运行

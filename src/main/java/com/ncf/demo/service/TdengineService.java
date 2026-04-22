@@ -51,6 +51,37 @@ public class TdengineService {
         this.systemConfigService = systemConfigService;
     }
 
+    static DatabaseTarget parseDatabaseTarget(String fullUrl) {
+        if (fullUrl == null || fullUrl.isBlank()) {
+            throw new IllegalArgumentException("TDengine URL must not be blank");
+        }
+
+        int schemeSeparator = fullUrl.indexOf("://");
+        if (schemeSeparator < 0) {
+            throw new IllegalArgumentException("Unsupported TDengine URL: " + fullUrl);
+        }
+
+        int databaseSeparator = fullUrl.indexOf('/', schemeSeparator + 3);
+        if (databaseSeparator < 0 || databaseSeparator == fullUrl.length() - 1) {
+            throw new IllegalArgumentException("Missing database name in TDengine URL: " + fullUrl);
+        }
+
+        int querySeparator = fullUrl.indexOf('?', databaseSeparator + 1);
+        String databaseName = querySeparator >= 0
+                ? fullUrl.substring(databaseSeparator + 1, querySeparator)
+                : fullUrl.substring(databaseSeparator + 1);
+        if (databaseName.isBlank() || databaseName.contains("/")) {
+            throw new IllegalArgumentException("Invalid database name in TDengine URL: " + fullUrl);
+        }
+
+        String baseUrl = fullUrl.substring(0, databaseSeparator + 1);
+        if (querySeparator >= 0) {
+            baseUrl += fullUrl.substring(querySeparator);
+        }
+
+        return new DatabaseTarget(baseUrl, databaseName);
+    }
+
     public void initTables() {
         initDatabase();
         execute("""
@@ -73,31 +104,23 @@ public class TdengineService {
     private void initDatabase() {
         String fullUrl = appProperties.getTdengine().getUrl();
         try {
-            // Basic parsing to separate DB name from URL
-            // Expected format: jdbc:TAOS-RS://host:port/db[?param=value]
-            int dbStart = fullUrl.lastIndexOf('/');
-            if (dbStart > 0) {
-                String baseUrl = fullUrl.substring(0, dbStart + 1);
-                String dbName = fullUrl.substring(dbStart + 1);
-                int paramStart = dbName.indexOf('?');
-                if (paramStart > 0) {
-                    dbName = dbName.substring(0, paramStart);
-                }
-                
-                if (!dbName.isEmpty()) {
-                    try (Connection connection = DriverManager.getConnection(
-                            baseUrl,
-                            appProperties.getTdengine().getUsername(),
-                            appProperties.getTdengine().getPassword()
-                    ); PreparedStatement preparedStatement = connection.prepareStatement("CREATE DATABASE IF NOT EXISTS " + dbName)) {
-                        preparedStatement.execute();
-                        log.info("Database {} ensured.", dbName);
-                    }
-                }
+            DatabaseTarget databaseTarget = parseDatabaseTarget(fullUrl);
+            try (Connection connection = DriverManager.getConnection(
+                    databaseTarget.baseUrl(),
+                    appProperties.getTdengine().getUsername(),
+                    appProperties.getTdengine().getPassword()
+            ); PreparedStatement preparedStatement = connection.prepareStatement(
+                    "CREATE DATABASE IF NOT EXISTS " + databaseTarget.databaseName()
+            )) {
+                preparedStatement.execute();
+                log.info("Database {} ensured.", databaseTarget.databaseName());
             }
         } catch (Exception e) {
             log.warn("Failed to init database, it might already exist or connection failed: {}", e.getMessage());
         }
+    }
+
+    record DatabaseTarget(String baseUrl, String databaseName) {
     }
 
     public void save(ParsedDeviceData data) {
