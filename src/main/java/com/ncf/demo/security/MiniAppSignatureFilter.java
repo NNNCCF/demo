@@ -49,6 +49,10 @@ public class MiniAppSignatureFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
+        if (isAdminCaptchaPath(path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         boolean strictPath = isStrictProtectedPath(path);
         boolean signedRequest = hasSignatureHeaders(request);
         if (!strictPath && !signedRequest) {
@@ -131,6 +135,11 @@ public class MiniAppSignatureFilter extends OncePerRequestFilter {
         return path.startsWith("/api/auth/")
                 || path.startsWith("/api/institution/")
                 || path.startsWith("/api/mini/");
+    }
+
+    private boolean isAdminCaptchaPath(String path) {
+        return path.equals("/api/auth/captcha")
+                || path.startsWith("/api/auth/captcha/");
     }
 
     private void reject(HttpServletResponse response, String message) throws IOException {
