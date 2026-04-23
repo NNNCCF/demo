@@ -120,13 +120,21 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         log.info("Admin user not found. Creating default admin user...");
-        String passwordHash = passwordEncoder.encode("200502");
+        String passwordHash = resolveInitialAdminPasswordHash();
 
         jdbcTemplate.update(
                 "INSERT INTO sys_user (id, username, password_hash, role, region, phone, status, force_password_change, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
                 1000L, "admin", passwordHash, "ADMIN", "HQ", "13800138000", "ENABLED", true
         );
         log.info("Default admin user created.");
+    }
+
+    String resolveInitialAdminPasswordHash() {
+        String configuredHash = appProperties.getAdminPasswordHash();
+        if (configuredHash != null && !configuredHash.isBlank()) {
+            return configuredHash;
+        }
+        return passwordEncoder.encode("200502");
     }
 
     private void ensureUserSecurityColumns(JdbcTemplate jdbcTemplate) {
