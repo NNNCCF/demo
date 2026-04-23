@@ -63,7 +63,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(publicEndpoints.toArray(String[]::new)).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/service-orders/**", "/api/news/**").hasAnyRole("ADMIN", "GUARDIAN")
+                        .requestMatchers(HttpMethod.GET, "/api/news/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/service-orders/**").hasAnyRole("ADMIN", "GUARDIAN")
                         .requestMatchers("/api/service-orders/**", "/api/news/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/organizations").authenticated()
                         .requestMatchers("/api/mini/**").hasAnyRole("ADMIN", "NURSE", "DOCTOR", "GUARDIAN", "INSTITUTION", "CAREGIVER")
