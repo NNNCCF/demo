@@ -22,6 +22,7 @@ public class AuthCaptchaService {
     private static final String LOGIN_SCENE = "LOGIN";
     private static final String REGISTER_SCENE = "REGISTER";
     private static final String DATA_URL_BASE64_MARKER = ";base64,";
+    private static final int MAX_FAIL_ATTEMPTS = 3;
 
     private final AppProperties appProperties;
     private final RestClient restClient;
@@ -125,9 +126,15 @@ public class AuthCaptchaService {
 
         stringRedisTemplate.delete(sessionKey(captchaToken));
         if (response == null || response.code() != 200) {
-            startCooldown(normalizedScene, clientKey);
-            throw new BizException(4291, "Captcha is invalid, retry in " + captcha.getCooldownSeconds() + " seconds");
+            int fails = incrementFailCount(normalizedScene, clientKey);
+            if (fails >= MAX_FAIL_ATTEMPTS) {
+                resetFailCount(normalizedScene, clientKey);
+                startCooldown(normalizedScene, clientKey);
+                throw new BizException(4291, "Too many wrong attempts, retry in " + captcha.getCooldownSeconds() + " seconds");
+            }
+            throw new BizException(4291, "Captcha is invalid (" + fails + "/" + MAX_FAIL_ATTEMPTS + ")");
         }
+        resetFailCount(normalizedScene, clientKey);
     }
 
     static byte[] decodeCaptchaImage(String imageUrl) {
@@ -163,6 +170,18 @@ public class AuthCaptchaService {
                 "1",
                 Duration.ofSeconds(cooldownSeconds)
         );
+    }
+
+    private int incrementFailCount(String scene, String clientKey) {
+        String key = failKey(scene, clientKey);
+        Long count = stringRedisTemplate.opsForValue().increment(key);
+        // 失败计数窗口与冷却时长保持一致
+        stringRedisTemplate.expire(key, Duration.ofSeconds(appProperties.getCaptcha().getCooldownSeconds()));
+        return count == null ? 1 : count.intValue();
+    }
+
+    private void resetFailCount(String scene, String clientKey) {
+        stringRedisTemplate.delete(failKey(scene, clientKey));
     }
 
     private long getCooldownSeconds(String scene, String clientKey) {
@@ -206,6 +225,10 @@ public class AuthCaptchaService {
 
     private String cooldownKey(String scene, String clientKey) {
         return "auth:captcha:cooldown:" + scene + ":" + clientKey;
+    }
+
+    private String failKey(String scene, String clientKey) {
+        return "auth:captcha:fails:" + scene + ":" + clientKey;
     }
 
     private String normalizeScene(String scene) {

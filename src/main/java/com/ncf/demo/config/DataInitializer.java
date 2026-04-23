@@ -112,10 +112,11 @@ public class DataInitializer implements CommandLineRunner {
 
     private void ensureDefaultAdminUser(JdbcTemplate jdbcTemplate) {
         if (userRepository.existsById(1000L) || userRepository.existsByUsername("admin")) {
-            jdbcTemplate.update(
-                    "UPDATE sys_user SET force_password_change = ? WHERE id = ? OR username = ?",
-                    true, 1000L, "admin"
-            );
+            // 仅当从未改过密码时才保持 force_password_change=true，已改过的不重置
+            jdbcTemplate.update("""
+                    UPDATE sys_user SET force_password_change = TRUE
+                    WHERE (id = ? OR username = ?) AND password_changed_at IS NULL
+                    """, 1000L, "admin");
             return;
         }
 
