@@ -299,6 +299,49 @@ public class MiniAppController {
         return familyRepo.findByGuardiansId(guardianId).stream().findFirst().orElse(null);
     }
 
+    private Family familyOfMember(Long memberId) {
+        if (memberId == null) return null;
+        Ward ward = wardRepo.findById(memberId).orElse(null);
+        if (ward == null || ward.getDevice() == null || ward.getDevice().getFamilyId() == null) {
+            return null;
+        }
+        return familyRepo.findById(ward.getDevice().getFamilyId()).orElse(null);
+    }
+
+    private Family currentGuardianBoundFamily(Long guardianId) {
+        if (guardianId == null) return null;
+        Family deviceFamily = deviceRepo.findByGuardianId(guardianId).stream()
+                .map(Device::getFamilyId)
+                .filter(Objects::nonNull)
+                .map(id -> familyRepo.findById(id).orElse(null))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        return deviceFamily != null ? deviceFamily : primaryFamilyOfGuardian(guardianId);
+    }
+
+    private Organization resolveCurrentServiceOrganization() {
+        Long orgId = SecurityUtil.currentOrgId();
+        if (orgId != null) {
+            return orgRepo.findById(orgId).orElse(null);
+        }
+
+        ClientUser currentUser = currentClientUser().orElse(null);
+        if (currentUser != null) {
+            if (currentUser.getOrgId() != null) {
+                return orgRepo.findById(currentUser.getOrgId()).orElse(null);
+            }
+            if ("GUARDIAN".equals(SecurityUtil.currentRole())) {
+                Family family = currentGuardianBoundFamily(currentUser.getId());
+                if (family != null && family.getOrgId() != null) {
+                    return orgRepo.findById(family.getOrgId()).orElse(null);
+                }
+            }
+        }
+
+        return orgRepo.findAll().stream().findFirst().orElse(null);
+    }
+
     private String resolveUserDisplayName(Long id) {
         if (id == null) return null;
         return clientUserRepo.findById(id)
@@ -671,18 +714,33 @@ public class MiniAppController {
         Long familyId = body.familyId();
         Long guardianId = body.guardianId();
         Long memberId = body.memberId();
+        Family memberFamily = null;
+
+        if (memberId != null) {
+            if ("GUARDIAN".equals(role) && !accessibleMemberIds().contains(memberId)) {
+                throw new BizException(4003, "无权访问该成员");
+            }
+            memberFamily = familyOfMember(memberId);
+            if (familyId == null && memberFamily != null) {
+                familyId = memberFamily.getId();
+            }
+        }
 
         if ("GUARDIAN".equals(role)) {
             guardianId = currentUid;
-            if (familyId == null) {
-                Family family = primaryFamilyOfGuardian(currentUid);
-                familyId = family != null ? family.getId() : null;
-            }
             if (memberId == null) {
                 List<Ward> wards = wardRepo.findByDeviceGuardianId(currentUid);
                 if (!wards.isEmpty()) {
-                    memberId = wards.get(0).getMemberId();
+                    Ward ward = wards.get(0);
+                    memberId = ward.getMemberId();
+                    if (familyId == null && ward.getDevice() != null && ward.getDevice().getFamilyId() != null) {
+                        familyId = ward.getDevice().getFamilyId();
+                    }
                 }
+            }
+            if (familyId == null) {
+                Family family = currentGuardianBoundFamily(currentUid);
+                familyId = family != null ? family.getId() : null;
             }
         }
 
@@ -1359,12 +1417,7 @@ public class MiniAppController {
 
     @GetMapping("/service/center")
     public ApiResponse<Map<String, Object>> serviceCenterInfo() {
-        Long orgId = SecurityUtil.currentOrgId();
-        Organization org = orgId != null ? orgRepo.findById(orgId).orElse(null) : null;
-        if (org == null) {
-            List<Organization> all = orgRepo.findAll();
-            org = all.isEmpty() ? null : all.get(0);
-        }
+        Organization org = resolveCurrentServiceOrganization();
         if (org == null) return ApiResponse.ok(Map.of());
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("id", org.getId());

@@ -7,9 +7,11 @@ import com.ncf.demo.entity.ClientUser;
 import com.ncf.demo.entity.NewsPost;
 import com.ncf.demo.entity.Organization;
 import com.ncf.demo.repository.ClientUserRepository;
+import com.ncf.demo.repository.DeviceRepository;
 import com.ncf.demo.repository.FamilyRepository;
 import com.ncf.demo.repository.NewsPostRepository;
 import com.ncf.demo.repository.OrganizationRepository;
+import com.ncf.demo.repository.WardRepository;
 import com.ncf.demo.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +54,12 @@ class NewsPostControllerIntegrationTest {
     @Autowired
     private FamilyRepository familyRepository;
 
+    @Autowired
+    private WardRepository wardRepository;
+
+    @Autowired
+    private DeviceRepository deviceRepository;
+
     @MockBean
     private MqttConfig.MqttGateway mqttGateway;
 
@@ -62,6 +70,8 @@ class NewsPostControllerIntegrationTest {
     @BeforeEach
     void setUp() {
         newsPostRepository.deleteAll();
+        wardRepository.deleteAll();
+        deviceRepository.deleteAll();
         familyRepository.deleteAll();
         clientUserRepository.deleteAll();
         organizationRepository.deleteAll();
