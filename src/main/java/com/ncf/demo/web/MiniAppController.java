@@ -102,7 +102,7 @@ public class MiniAppController {
                    String handleTime, String handleNurse, String handleRemark) {}
 
     record ApptVo(Long id, String type, String status,
-                  String doctor, String acceptNurse,
+                  String doctor, String acceptNurse, String nursePhone,
                   FamilyRef family, MemberRef member, GuardianRef guardian,
                   String appointTime, String requirement,
                   String payAmount, String payStatus,
@@ -414,6 +414,39 @@ public class MiniAppController {
         return alarm;
     }
 
+    private ServiceOrder requireAccessibleAppointment(Long id) {
+        ServiceOrder order = orderRepo.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new BizException(4004, "Appointment record not found"));
+
+        String role = SecurityUtil.currentRole();
+        if ("GUARDIAN".equals(role)) {
+            Long currentUid = SecurityUtil.currentUserId();
+            boolean allowed = Objects.equals(order.getGuardianId(), currentUid);
+            if (!allowed && order.getMemberId() != null) {
+                allowed = accessibleMemberIds().contains(order.getMemberId());
+            }
+            if (!allowed) {
+                throw new BizException(4003, "No permission to access this appointment");
+            }
+            return order;
+        }
+
+        if ("INSTITUTION".equals(role) || "CAREGIVER".equals(role)
+                || "NURSE".equals(role) || "DOCTOR".equals(role)) {
+            Long currentUid = SecurityUtil.currentUserId();
+            Long orgId = SecurityUtil.currentOrgId();
+            boolean allowed = Objects.equals(order.getNurseId(), currentUid);
+            if (!allowed && orgId != null) {
+                allowed = Objects.equals(order.getOrgId(), orgId);
+            }
+            if (!allowed) {
+                throw new BizException(4003, "No permission to access this appointment");
+            }
+        }
+
+        return order;
+    }
+
     private AlarmVo toAlarmVo(Alarm a) {
         Long targetId = a.getTargetId();
         Ward ward = targetId != null ? wardRepo.findById(targetId).orElse(null) : null;
@@ -460,7 +493,7 @@ public class MiniAppController {
 
         return new ApptVo(
                 o.getId(), typeLabel, apptStatusStr(o.getStatus()),
-                doctorName, o.getNurseName(),
+                doctorName, o.getNurseName(), o.getNursePhone(),
                 fRef, mRef, gRef,
                 fmt(o.getAppointmentTime()), o.getRequirement(),
                 o.getPayAmount(), o.getPayStatus(),
@@ -776,8 +809,7 @@ public class MiniAppController {
 
     @GetMapping("/appointments/{id}")
     public ApiResponse<ApptVo> getAppointment(@PathVariable Long id) {
-        ServiceOrder o = orderRepo.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
+        ServiceOrder o = requireAccessibleAppointment(id);
         return ApiResponse.ok(toApptVo(o));
     }
 
