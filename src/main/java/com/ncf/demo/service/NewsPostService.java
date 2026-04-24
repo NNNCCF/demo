@@ -74,7 +74,7 @@ public class NewsPostService {
                     .map(Family::getId)
                     .collect(Collectors.toSet());
             if (!isVisibleToGuardian(post, familyIds)) {
-                throw new BizException(403, "无权查看该动态");
+                throw new BizException(4003, "无权查看该动态");
             }
         }
         return post;
