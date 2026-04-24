@@ -57,6 +57,7 @@ class NewsPostControllerIntegrationTest {
 
     private Organization organization;
     private ClientUser institutionUser;
+    private ClientUser caregiverUser;
 
     @BeforeEach
     void setUp() {
@@ -80,6 +81,14 @@ class NewsPostControllerIntegrationTest {
         institutionUser.setRole(ClientUserRole.INSTITUTION);
         institutionUser.setOrgId(organization.getId());
         institutionUser = clientUserRepository.save(institutionUser);
+
+        caregiverUser = new ClientUser();
+        caregiverUser.setName("Caregiver Publisher");
+        caregiverUser.setMobile("13800000112");
+        caregiverUser.setPassword("encoded");
+        caregiverUser.setRole(ClientUserRole.CAREGIVER);
+        caregiverUser.setOrgId(organization.getId());
+        caregiverUser = clientUserRepository.save(caregiverUser);
     }
 
     @Test
@@ -147,5 +156,26 @@ class NewsPostControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.attachments[0]").value("https://example.com/uploads/news/legacy.jpg"));
+    }
+
+    @Test
+    void caregiverCanCreateNewsForStaffPublishPage() throws Exception {
+        String token = jwtService.generate(caregiverUser.getId(), "CAREGIVER", organization.getId());
+
+        mockMvc.perform(post("/api/news")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Caregiver Notice",
+                                  "content": "Caregiver update for service follow-up",
+                                  "category": "health",
+                                  "targetScope": "ALL"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.title").value("Caregiver Notice"))
+                .andExpect(jsonPath("$.data.publisherName").value("Caregiver Publisher"));
     }
 }
