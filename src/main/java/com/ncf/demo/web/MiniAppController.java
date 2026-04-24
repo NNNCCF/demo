@@ -1,5 +1,7 @@
 package com.ncf.demo.web;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ncf.demo.common.BizException;
 import com.ncf.demo.config.AppProperties;
 import com.ncf.demo.domain.*;
@@ -56,6 +58,7 @@ public class MiniAppController {
     private final AlarmService alarmService;
     private final TdengineService tdengineService;
     private final AppProperties appProperties;
+    private final ObjectMapper objectMapper;
 
     public MiniAppController(AlarmRepository alarmRepo, WardRepository wardRepo,
                              DeviceRepository deviceRepo, FamilyRepository familyRepo,
@@ -67,7 +70,8 @@ public class MiniAppController {
                              FeedbackSubmissionRepository feedbackRepo,
                              AlarmService alarmService,
                              TdengineService tdengineService,
-                             AppProperties appProperties) {
+                             AppProperties appProperties,
+                             ObjectMapper objectMapper) {
         this.alarmRepo = alarmRepo;
         this.wardRepo = wardRepo;
         this.deviceRepo = deviceRepo;
@@ -84,6 +88,7 @@ public class MiniAppController {
         this.alarmService = alarmService;
         this.tdengineService = tdengineService;
         this.appProperties = appProperties;
+        this.objectMapper = objectMapper;
     }
 
     // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // Inner VO / request record types
@@ -139,7 +144,7 @@ public class MiniAppController {
                               Long guardianId, String appointTime, String requirement,
                               String contactName, String contactPhone) {}
 
-    record DispatchRequest(Long nurseId, String nurseName) {}
+    record DispatchRequest(Long nurseId, String nurseName, String visitDate) {}
 
     record VisitRecordRequest(String visitTime, String payAmount, String payStatus,
                                String remark, List<String> photos) {}
@@ -225,6 +230,65 @@ public class MiniAppController {
     private Long parseLongParam(String value) {
         if (value == null || value.isBlank() || "undefined".equals(value) || "null".equals(value)) return null;
         try { return Long.parseLong(value); } catch (NumberFormatException e) { return null; }
+    }
+
+    private Instant parseVisitDate(String visitDate) {
+        if (!StringUtils.hasText(visitDate)) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(visitDate)
+                    .atStartOfDay(ZoneId.of("Asia/Shanghai"))
+                    .toInstant();
+        } catch (Exception ex) {
+            throw new BizException(4000, "visitDate format must be yyyy-MM-dd");
+        }
+    }
+
+    private Instant parseVisitTime(String visitTime) {
+        if (!StringUtils.hasText(visitTime)) {
+            return Instant.now();
+        }
+        List<DateTimeFormatter> formatters = List.of(
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+        );
+        for (DateTimeFormatter formatter : formatters) {
+            try {
+                return LocalDateTime.parse(visitTime, formatter)
+                        .atZone(ZoneId.of("Asia/Shanghai"))
+                        .toInstant();
+            } catch (Exception ignored) {
+                // Try the next supported format.
+            }
+        }
+        throw new BizException(4000, "visitTime format must be yyyy-MM-dd HH:mm:ss or yyyy-MM-dd HH:mm");
+    }
+
+    private String writeJsonArray(List<String> values) {
+        List<String> normalized = values == null ? List.of() : values.stream()
+                .filter(StringUtils::hasText)
+                .toList();
+        try {
+            return objectMapper.writeValueAsString(normalized);
+        } catch (JsonProcessingException ex) {
+            throw new BizException(5000, "Failed to serialize visit photos");
+        }
+    }
+
+    private ClientUser requireAssignableCaregiver(Long nurseId, Long orgId) {
+        if (nurseId == null) {
+            return null;
+        }
+        ClientUser nurse = clientUserRepo.findById(nurseId)
+                .orElseThrow(() -> new BizException(4004, "Assigned caregiver not found"));
+        if (nurse.getRole() != ClientUserRole.CAREGIVER) {
+            throw new BizException(4000, "Assigned staff must be a caregiver");
+        }
+        if (orgId != null && !Objects.equals(orgId, nurse.getOrgId())) {
+            throw new BizException(4003, "Assigned caregiver must belong to the same organization");
+        }
+        return nurse;
     }
 
     private ClientUser requireCurrentClientUser() {
@@ -680,14 +744,17 @@ public class MiniAppController {
                                                   @RequestBody DispatchRequest body) {
         ServiceOrder o = orderRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
-        ClientUser nurse = body.nurseId() != null ? clientUserRepo.findById(body.nurseId()).orElse(null) : null;
         Long orgId = SecurityUtil.currentOrgId();
+        ClientUser nurse = requireAssignableCaregiver(body.nurseId(), orgId);
         String orgName = orgId != null
                 ? orgRepo.findById(orgId).map(Organization::getName).orElse("机构") : "机构";
         o.setStatus(ServiceOrderStatus.PENDING);
-        o.setNurseId(body.nurseId());
+        o.setNurseId(nurse != null ? nurse.getId() : null);
         o.setNurseName(body.nurseName() != null ? body.nurseName() : (nurse != null ? nurse.getName() : null));
         o.setNursePhone(nurse != null ? nurse.getMobile() : null);
+        if (StringUtils.hasText(body.visitDate())) {
+            o.setAppointmentTime(parseVisitDate(body.visitDate()));
+        }
         o.setAcceptTime(null);
         o.setDispatchedBy(orgName);
         orderRepo.save(o);
@@ -699,20 +766,11 @@ public class MiniAppController {
                                                 @RequestBody VisitRecordRequest body) {
         ServiceOrder o = orderRepo.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BizException(4004, "预约记录不存在"));
-        if (body.visitTime() != null) {
-            try {
-                o.setVisitTime(LocalDateTime.parse(body.visitTime(),
-                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-                        .atZone(ZoneId.of("Asia/Shanghai")).toInstant());
-            } catch (Exception ignored) {
-                o.setVisitTime(Instant.now());
-            }
-        } else {
-            o.setVisitTime(Instant.now());
-        }
+        o.setVisitTime(parseVisitTime(body.visitTime()));
         o.setPayAmount(body.payAmount());
         o.setPayStatus(body.payStatus());
         o.setVisitRemark(body.remark());
+        o.setVisitPhotos(writeJsonArray(body.photos()));
         o.setStatus(ServiceOrderStatus.COMPLETED);
         orderRepo.save(o);
         return ApiResponse.ok(null);

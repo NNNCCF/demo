@@ -98,6 +98,9 @@ public class ServiceOrder {
     @Column(name = "visit_remark", columnDefinition = "TEXT")
     private String visitRemark;
 
+    @Column(name = "visit_photos", columnDefinition = "TEXT")
+    private String visitPhotos;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -202,6 +205,9 @@ public class ServiceOrder {
 
     public String getVisitRemark() { return visitRemark; }
     public void setVisitRemark(String visitRemark) { this.visitRemark = visitRemark; }
+
+    public String getVisitPhotos() { return visitPhotos; }
+    public void setVisitPhotos(String visitPhotos) { this.visitPhotos = visitPhotos; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
