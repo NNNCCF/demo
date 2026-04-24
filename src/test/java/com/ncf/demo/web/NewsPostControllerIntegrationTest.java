@@ -7,6 +7,7 @@ import com.ncf.demo.entity.ClientUser;
 import com.ncf.demo.entity.NewsPost;
 import com.ncf.demo.entity.Organization;
 import com.ncf.demo.repository.ClientUserRepository;
+import com.ncf.demo.repository.FamilyRepository;
 import com.ncf.demo.repository.NewsPostRepository;
 import com.ncf.demo.repository.OrganizationRepository;
 import com.ncf.demo.security.JwtService;
@@ -48,6 +49,9 @@ class NewsPostControllerIntegrationTest {
     @Autowired
     private ClientUserRepository clientUserRepository;
 
+    @Autowired
+    private FamilyRepository familyRepository;
+
     @MockBean
     private MqttConfig.MqttGateway mqttGateway;
 
@@ -57,6 +61,7 @@ class NewsPostControllerIntegrationTest {
     @BeforeEach
     void setUp() {
         newsPostRepository.deleteAll();
+        familyRepository.deleteAll();
         clientUserRepository.deleteAll();
         organizationRepository.deleteAll();
 
