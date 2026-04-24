@@ -1,6 +1,7 @@
 package com.ncf.demo.web;
 
 import com.ncf.demo.common.BizException;
+import com.ncf.demo.config.AppProperties;
 import com.ncf.demo.domain.*;
 import com.ncf.demo.entity.*;
 import com.ncf.demo.repository.*;
@@ -10,8 +11,16 @@ import com.ncf.demo.service.TdengineService;
 import com.ncf.demo.web.dto.mini.NurseListItem;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -25,6 +34,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/mini")
 public class MiniAppController {
 
+    private static final Set<String> ALLOWED_UPLOAD_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
     private static final DateTimeFormatter DT_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Shanghai"));
     private static final DateTimeFormatter DATE_FMT =
@@ -45,6 +55,7 @@ public class MiniAppController {
     private final FeedbackSubmissionRepository feedbackRepo;
     private final AlarmService alarmService;
     private final TdengineService tdengineService;
+    private final AppProperties appProperties;
 
     public MiniAppController(AlarmRepository alarmRepo, WardRepository wardRepo,
                              DeviceRepository deviceRepo, FamilyRepository familyRepo,
@@ -55,7 +66,8 @@ public class MiniAppController {
                              GuardianAlarmSettingRepository guardianAlarmSettingRepo,
                              FeedbackSubmissionRepository feedbackRepo,
                              AlarmService alarmService,
-                             TdengineService tdengineService) {
+                             TdengineService tdengineService,
+                             AppProperties appProperties) {
         this.alarmRepo = alarmRepo;
         this.wardRepo = wardRepo;
         this.deviceRepo = deviceRepo;
@@ -71,6 +83,7 @@ public class MiniAppController {
         this.feedbackRepo = feedbackRepo;
         this.alarmService = alarmService;
         this.tdengineService = tdengineService;
+        this.appProperties = appProperties;
     }
 
     // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // Inner VO / request record types
@@ -376,6 +389,50 @@ public class MiniAppController {
 
     // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?    // ALARMS
     // 閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅查埡鎰ㄦ櫜閳烘劏鏅?
+    @PostMapping(path = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<String> uploadMiniappImage(@RequestPart("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new BizException(4000, "Image file is required");
+        }
+
+        String originalName = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
+        String extension = StringUtils.getFilenameExtension(StringUtils.cleanPath(originalName));
+        String normalizedExtension = extension == null ? "" : extension.toLowerCase(Locale.ROOT);
+        if (!ALLOWED_UPLOAD_EXTENSIONS.contains(normalizedExtension)) {
+            throw new BizException(4000, "Only jpg, jpeg, png, and webp images are supported");
+        }
+
+        try {
+            String day = LocalDate.now(ZoneId.of("Asia/Shanghai")).format(DateTimeFormatter.BASIC_ISO_DATE);
+            Path root = Paths.get(appProperties.getUpload().getBaseDir()).toAbsolutePath().normalize();
+            Path targetDir = root.resolve("miniapp").resolve(day).normalize();
+            Files.createDirectories(targetDir);
+
+            String filename = UUID.randomUUID() + "." + normalizedExtension;
+            Path targetFile = targetDir.resolve(filename).normalize();
+            if (!targetFile.startsWith(root)) {
+                throw new BizException(4000, "Illegal upload path");
+            }
+
+            file.transferTo(targetFile);
+
+            String configuredBaseUrl = appProperties.getUpload().getPublicBaseUrl();
+            String baseUrl = StringUtils.hasText(configuredBaseUrl)
+                    ? configuredBaseUrl.replaceAll("/+$", "")
+                    : ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString();
+            String publicPath = appProperties.getUpload().getPublicPath();
+            String normalizedPublicPath = (publicPath == null || publicPath.isBlank()) ? "/uploads" : publicPath;
+            if (!normalizedPublicPath.startsWith("/")) {
+                normalizedPublicPath = "/" + normalizedPublicPath;
+            }
+            normalizedPublicPath = normalizedPublicPath.replaceAll("/+$", "");
+
+            return ApiResponse.ok(baseUrl + normalizedPublicPath + "/miniapp/" + day + "/" + filename);
+        } catch (IOException ex) {
+            throw new BizException(5000, "Failed to store uploaded image");
+        }
+    }
+
     @GetMapping("/alarms")
     public ApiResponse<List<AlarmVo>> listAlarms(
             @RequestParam(required = false) String status,

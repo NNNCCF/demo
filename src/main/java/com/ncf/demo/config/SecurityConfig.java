@@ -62,6 +62,7 @@ public class SecurityConfig {
                 }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(publicEndpoints.toArray(String[]::new)).permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/news/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/service-orders/**").hasAnyRole("ADMIN", "GUARDIAN")

@@ -8,6 +8,7 @@ public class AppProperties {
     private final Emqx emqx = new Emqx();
     private final Tdengine tdengine = new Tdengine();
     private final Miniapp miniapp = new Miniapp();
+    private final Upload upload = new Upload();
     private final Exposure exposure = new Exposure();
     private final Captcha captcha = new Captcha();
 
@@ -28,6 +29,10 @@ public class AppProperties {
 
     public Miniapp getMiniapp() {
         return miniapp;
+    }
+
+    public Upload getUpload() {
+        return upload;
     }
 
     public Exposure getExposure() {
@@ -237,6 +242,36 @@ public class AppProperties {
 
         public void setActuatorPublic(boolean actuatorPublic) {
             this.actuatorPublic = actuatorPublic;
+        }
+    }
+
+    public static class Upload {
+        private String baseDir = "./data/uploads";
+        private String publicPath = "/uploads";
+        private String publicBaseUrl = "";
+
+        public String getBaseDir() {
+            return baseDir;
+        }
+
+        public void setBaseDir(String baseDir) {
+            this.baseDir = baseDir;
+        }
+
+        public String getPublicPath() {
+            return publicPath;
+        }
+
+        public void setPublicPath(String publicPath) {
+            this.publicPath = publicPath;
+        }
+
+        public String getPublicBaseUrl() {
+            return publicBaseUrl;
+        }
+
+        public void setPublicBaseUrl(String publicBaseUrl) {
+            this.publicBaseUrl = publicBaseUrl;
         }
     }
 
